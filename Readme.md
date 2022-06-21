@@ -4,7 +4,7 @@
 
 ## 我目前的anne多人运动插件的修改相关插件
 
-abm 多人管理，tank血量管理
+server 多人管理，l4d_tank_damage_announce tank血量管理
 
 l4d_tank_damage_announce 支持8人以下的tank伤害显示，tank血量设置锁定
 
