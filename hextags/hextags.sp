@@ -109,7 +109,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 {
 	//API
 	RegPluginLibrary("hextags");
-	
 	CreateNative("HexTags_GetClientTag", Native_GetClientTag);
 	CreateNative("HexTags_SetClientTag", Native_SetClientTag);
 	CreateNative("HexTags_ResetClientTag", Native_ResetClientTags);
@@ -139,10 +138,10 @@ public void OnPluginStart()
 	//ConVars
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY | FCVAR_REPLICATED | FCVAR_NOTIFY);
 	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs.");
-	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "1", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
+	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
 	cv_bEnableTagsList = CreateConVar("sm_hextags_enable_tagslist", "1", "Set to 1 to enable the sm_tagslist command.");
 	
-	AutoExecConfig();
+	//AutoExecConfig();
 	
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config.");
@@ -436,7 +435,12 @@ public int Handler_TagsMenu(Menu menu, MenuAction action, int param1, int param2
 		static char sIndex[16];
 		menu.GetItem(param2, sIndex, sizeof(sIndex));
 		userTags[param1].GetArray(StringToInt(sIndex), selectedTags[param1], sizeof(CustomTags));
-		if (selectedTags[param1].ScoreTag[0] != '\0')
+		if(StrContains(selectedTags[param1].ScoreTag, "<自定义称号>", false) != -1)
+		{
+			ClientCommand(param1,"sm_applytags");
+			return 1;
+		}
+		else if (selectedTags[param1].ScoreTag[0] != '\0')
 		{
 			CS_SetClientClanTag(param1, selectedTags[param1].ScoreTag);
 		}
@@ -447,7 +451,7 @@ public int Handler_TagsMenu(Menu menu, MenuAction action, int param1, int param2
 		SetClientCookie(param1, hSelTagCookie, sValue);
 		PrintToChat(param1, "[SM] 称号 %s 设置成功", selectedTags[param1].TagName);
 	}
-	
+	return 0;
 }
 
 public Action Cmd_GetTeam(int client, int args)
@@ -838,7 +842,7 @@ void LoadTags(int client)
 	if (bHideTag[client])
 		return;
 	
-	if (!IsValidClient(client, true, true))
+	if (!IsValidClient(client, false, true))
 		return;
 	
 	//Clear the tags when re-checking

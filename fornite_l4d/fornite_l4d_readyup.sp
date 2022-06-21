@@ -92,9 +92,9 @@ public void OnPluginStart() {
 	RegAdminCmd("sm_setdances", Command_Admin_Emotes, ADMFLAG_GENERIC, "[SM] Usage: sm_setemotes <#userid|name> [Emote ID]", "");
 	RegAdminCmd("sm_setdance", Command_Admin_Emotes, ADMFLAG_GENERIC, "[SM] Usage: sm_setemotes <#userid|name> [Emote ID]", "");
 
-	HookEvent("player_afk", Event_PAfkQ);
+//	HookEvent("player_afk", Event_PAfkQ);
 	HookEvent("player_bot_replace", Event_PAfk);
-	HookEvent("player_team", Event_PAfkQ);
+//	HookEvent("player_team", Event_PAfkQ);
 
 	HookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
 
@@ -308,19 +308,22 @@ public void OnMapStart()
 public Action Event_PAfk(Handle event, const char[] name, bool dontBroadcast) {
 	int client = GetClientOfUserId(GetEventInt(event, "player"));
 	int target = GetClientOfUserId(GetEventInt(event, "bot"));
-	if(!client && IsFakeClient(client))
-		return Plugin_Stop;
+	if(IsFakeClient(client))
+		return Plugin_Handled;
+		/*
 	if (IsClientInGame(client)) {
 		ResetCam(client);
 		TerminateEmote(client);
 		WeaponUnblock(client);
 		g_bClientDancing[client] = false;
 	}
+	*/
 	SetEntityMoveType(target, MOVETYPE_WALK);
+	return Plugin_Continue;
 }
 public Action Event_PAfkQ(Handle event, const char[] name, bool dontBroadcast) {
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
-	if(!client && IsFakeClient(client))
+	if(IsClientConnected(client)  && IsFakeClient(client))
 		return Plugin_Stop;
 	if( 0 < client <= MaxClients && g_bClientDancing[client] )
 	{
@@ -329,6 +332,7 @@ public Action Event_PAfkQ(Handle event, const char[] name, bool dontBroadcast) {
 		WeaponUnblock(client);
 		g_bClientDancing[client] = false;
     }
+    return Plugin_Continue;
 }
 
 public void OnClientPutInServer(int client)

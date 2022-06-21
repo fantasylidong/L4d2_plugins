@@ -1394,6 +1394,19 @@ int GetClosestSurvivor(float refpos[3], int excludeSur = -1)
 	return closetSur;
 }
 
+bool TankIsPinned(int client)
+{
+	bool bIsPinned = false;
+	if (IsSurvivor(client))
+	{
+		if(GetEntPropEnt(client, Prop_Send, "m_pounceAttacker") > 0) bIsPinned = true;
+		if(GetEntPropEnt(client, Prop_Send, "m_carryAttacker") > 0) bIsPinned = true;
+		if(GetEntPropEnt(client, Prop_Send, "m_pummelAttacker") > 0) bIsPinned = true;
+		if(GetEntPropEnt(client, Prop_Send, "m_jockeyAttacker") > 0) bIsPinned = true;
+	}		
+	return bIsPinned;
+}
+
 bool IsPinned(int client)
 {
 	bool bIsPinned = false;

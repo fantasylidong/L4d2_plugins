@@ -5,6 +5,7 @@
 #include <sdkhooks>
 #include <left4dhooks>
 #include <colors>
+#include <steamworks>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define SCORE_DELAY_EMPTY_SERVER 3.0
@@ -25,7 +26,8 @@ public OnPluginStart()
 	RegAdminCmd("sm_restartmap", RestartMap, ADMFLAG_ROOT, "restarts map");
 	HookEvent("map_transition", ChangeMap_Event);
 	HookEvent("witch_killed", WitchKilled_Event);
-	HookEvent("revive_success", BlackReminder_Event);	
+	HookEvent("revive_success", BlackReminder_Event);
+	HookEvent("player_disconnect", PlayerDisconnect_Event, EventHookMode_Pre);
 	RegConsoleCmd("sm_ip", ShowAnneServerIP);
 	RegConsoleCmd("sm_zs", ZiSha);
 	RegConsoleCmd("sm_kill", ZiSha);
@@ -33,6 +35,82 @@ public OnPluginStart()
     hCvarMotdUrl = CreateConVar("sm_cfgmotd_url", "http://sb.trygek.com:8880/l4d_stats/index.php");  // 以后更换为数据库控制
 	hCvarIPUrl = CreateConVar("sm_cfgip_url", "http://sb.trygek.com:8880/l4d_stats/index.php");	// 以后更换为数据库控制
 }
+
+
+public Action:PlayerDisconnect_Event(Handle:event, const String:name[], bool:dontBroadcast)
+{
+    int client = GetClientOfUserId(GetEventInt(event,"userid"));
+
+    if (!(1 <= client <= MaxClients))
+        return Plugin_Handled;
+
+    if (!IsClientInGame(client))
+        return Plugin_Handled;
+
+    if (IsFakeClient(client))
+        return Plugin_Handled;
+
+    new String:reason[64];
+    new String:message[64];
+    GetEventString(event, "reason", reason, sizeof(reason));
+
+    if(StrContains(reason, "connection rejected", false) != -1)
+    {
+        Format(message,sizeof(message),"连接被拒绝");
+    }
+    else if(StrContains(reason, "timed out", false) != -1)
+    {
+        Format(message,sizeof(message),"超时");
+    }
+    else if(StrContains(reason, "by console", false) != -1)
+    {
+        Format(message,sizeof(message),"控制台退出");
+    }
+    else if(StrContains(reason, "by user", false) != -1)
+    {
+        Format(message,sizeof(message),"自己主动断开连接");
+    }
+    else if(StrContains(reason, "ping is too high", false) != -1)
+    {
+        Format(message,sizeof(message),"ping 太高了");
+    }
+    else if(StrContains(reason, "No Steam logon", false) != -1)
+    {
+        Format(message,sizeof(message),"no steam logon/ steam验证失败");
+    }
+    else if(StrContains(reason, "Steam account is being used in another", false) != -1)
+    {
+        Format(message,sizeof(message),"steam账号被顶");
+    }
+    else if(StrContains(reason, "Steam Connection lost", false) != -1)
+    {
+        Format(message,sizeof(message),"steam断线");
+    }
+    else if(StrContains(reason, "This Steam account does not own this game", false) != -1)
+    {
+        Format(message,sizeof(message),"没有这款游戏");
+    }
+    else if(StrContains(reason, "Validation Rejected", false) != -1)
+    {
+        Format(message,sizeof(message),"验证失败");
+    }
+    else if(StrContains(reason, "Certificate Length", false) != -1)
+    {
+        Format(message,sizeof(message),"certificate length");
+    }
+    else if(StrContains(reason, "Pure server", false) != -1)
+    {
+        Format(message,sizeof(message),"纯净服务器");
+    }
+    else
+    {
+        message = reason;
+    }
+
+    CPrintToChatAll("{green}%N {olive}离开了游戏 - 理由: [{green}%s{olive}]", client, message);
+    return Plugin_Handled;
+} 
+
 //系统自带的玩家离开游戏提示(聊天提示：XXX 离开了游戏。)
 public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBroadcast)
 {
@@ -111,6 +189,9 @@ public OnClientPutInServer(client)
 	ShowMotdToPlayer(client);
 }
 
+public void OnGameFrame(){
+	SteamWorks_SetGameDescription("电信战役多特服");
+}
 
 public Action:Command_Setinfo(client, const String:command[], args)
 {
@@ -155,10 +236,11 @@ public OnClientConnected(client)
 public OnClientDisconnect(client)
 {
 	if(!client || IsFakeClient(client) || (IsClientConnected(client) && !IsClientInGame(client))) return; //連線中尚未進來的玩家離線
+	/*
 	if(!IsFakeClient(client))
 	{
 		PrintToChatAll("\x04 %N \x05离开服务器",client);
-	}
+	}*/
 	if(client && !checkrealplayerinSV(client)) //檢查是否還有玩家以外的人還在伺服器或是連線中
 	{
 		delete COLD_DOWN_Timer;
@@ -215,7 +297,7 @@ public ChangeMap_Event(Handle:event, const String:name[], bool:dontBroadcast)
 			}
 			else{
 				SetSurvivorPermHealth(client, 50);
-				L4D_SetTempHealth(client,0);
+				L4D_SetTempHealth(client,0.0);
 				L4D_SetPlayerReviveCount(client,0);
 			}
 			

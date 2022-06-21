@@ -6,6 +6,8 @@
 #include <l4d2lib>
 #include <left4dhooks>
 #include <colors>
+#undef REQUIRE_PLUGIN
+#include <CreateSurvivorBot>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define SCORE_DELAY_EMPTY_SERVER 3.0
@@ -20,11 +22,13 @@ public Plugin myinfo =
 	version 		= "2022.04.24",
 	url 			= "https://github.com/Caibiii/AnneServer"
 }
-new Float:lastDisconnectTime;
+
 new Handle:hCvarMotdTitle;
 new Handle:hCvarMotdUrl;
 new Handle:hCvarIPUrl;
 new Handle:COLD_DOWN_Timer;
+ConVar hMaxSurvivors,hSurvivorsManagerEnable;
+int iMaxSurvivors,iEnable;
 public OnPluginStart()
 {
 	RegConsoleCmd("sm_away", AFKTurnClientToSpe);
@@ -40,14 +44,146 @@ public OnPluginStart()
 	HookEvent("finale_win", ResetSurvivors);
 	HookEvent("map_transition", ResetSurvivors);
 	HookEvent("round_start", event_RoundStart);
+	HookEvent("player_disconnect", PlayerDisconnect_Event, EventHookMode_Pre);
 	RegConsoleCmd("sm_join", AFKTurnClientToSurvivors);
 	RegConsoleCmd("sm_jg", AFKTurnClientToSurvivors);
 	RegConsoleCmd("sm_ip", ShowAnneServerIP);
+	RegConsoleCmd("sm_setbot", SetBot);
+	SetConVarBounds(FindConVar("survivor_limit"), ConVarBound_Upper, true, 8.0);
+	RegAdminCmd("sm_addbot", ADMAddBot, ADMFLAG_KICK, "Attempt to add a survivor bot (this bot will not be kicked by this plugin until someone takes over)");
 	RegAdminCmd("sm_restart", RestartServer, ADMFLAG_ROOT, "Kicks all clients and restarts server");
+	hSurvivorsManagerEnable = CreateConVar("l4d_multislots_survivors_manager_enable", "0", "Enable or Disable survivors manage",CVAR_FLAGS, true, 0.0, true, 1.0);
+	hMaxSurvivors	= CreateConVar("l4d_multislots_max_survivors", "4", "Kick AI Survivor bots if numbers of survivors has exceeded the certain value. (does not kick real player, minimum is 4)", CVAR_FLAGS, true, 4.0, true, 8.0);
 	hCvarMotdTitle = CreateConVar("sm_cfgmotd_title", "AnneHappy");
     hCvarMotdUrl = CreateConVar("sm_cfgmotd_url", "http://111.67.204.59/aliyun/serverip.php");  // 以后更换为数据库控制
 	hCvarIPUrl = CreateConVar("sm_cfgip_url", "http://111.67.204.59/aliyun/serverip.php");	// 以后更换为数据库控制
+	hSurvivorsManagerEnable.AddChangeHook(ConVarChanged_Cvars);
+	hMaxSurvivors.AddChangeHook(ConVarChanged_Cvars);
 }
+
+public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+{
+	GetCvars();
+}
+
+void GetCvars()
+{
+	iEnable = hSurvivorsManagerEnable.IntValue;
+	iMaxSurvivors = hMaxSurvivors.IntValue;
+	if(iEnable){
+		if(GetSurvivorCount() < iMaxSurvivors)
+		{
+			for(int i=1, j = iMaxSurvivors - GetSurvivorCount(); i <= j; i++ )
+			{
+				SpawnFakeClient();
+			}
+		}else if(GetSurvivorCount() > iMaxSurvivors){
+			for(int i=1, j = GetSurvivorCount() - iMaxSurvivors; i <= j; i++ )
+			{
+				if(!GetRandomSurvivor(-1,1))
+				{
+					ChangeClientTeam(GetRandomSurvivor(),1);
+					KickClient(GetRandomSurvivor(-1,1));
+				}
+				else	
+					KickClient(GetRandomSurvivor(-1,1));
+			}
+		}
+	}
+}
+
+
+
+////////////////////////////////////
+// Callbacks
+////////////////////////////////////
+public Action ADMAddBot(int client, int args)
+{
+	if(client == 0)
+		return Plugin_Continue;
+	
+	if(SpawnFakeClient() == true)
+		PrintToChat(client, "\x04一个生还者Bot被生成.");
+	else
+		PrintToChat(client,  "\x04暂时无法生成生还者Bot.");
+	
+	return Plugin_Handled;
+}
+
+//try to spawn survivor
+bool SpawnFakeClient()
+{
+	//check if there are any alive survivor in server
+	int iAliveSurvivor = GetRandomSurvivor(1);
+	if(iAliveSurvivor == 0)
+		return false;
+		
+	// create fakeclient
+	int fakeclient = CreateSurvivorBot();
+	
+	// if entity is valid
+	if(fakeclient > 0 && IsClientInGame(fakeclient))
+	{
+		float teleportOrigin[3];
+		GetClientAbsOrigin(iAliveSurvivor, teleportOrigin)	;
+		TeleportEntity( fakeclient, teleportOrigin, NULL_VECTOR, NULL_VECTOR);
+		return true;
+	}
+	
+	return false;
+}
+
+public Action:SetBot(client, args) 
+{
+    if(iEnable){
+		if(GetSurvivorCount() < iMaxSurvivors)
+		{
+			for(int i=1, j = iMaxSurvivors - GetSurvivorCount(); i <= j; i++ )
+			{
+				SpawnFakeClient();
+			}
+		}else if(GetSurvivorCount() > iMaxSurvivors){
+			for(int i=1, j = GetSurvivorCount() - iMaxSurvivors; i <= j; i++ )
+			{
+				if(!GetRandomSurvivor(-1,1))
+				{
+					ChangeClientTeam(GetRandomSurvivor(),1);
+					KickClient(GetRandomSurvivor(-1,1));
+				}
+				else	
+					KickClient(GetRandomSurvivor(-1,1));
+			}
+		}
+	}
+}
+
+/**
+ * @brief Get survivor count.
+ * 
+ * @return          Survivor count.
+ */
+ 
+stock int GetSurvivorCount()
+{
+    int count = 0;
+    for (int i = 1; i <= MaxClients; i++)
+        if (IsSurvivor(i))
+            count++;
+
+    return count;
+}
+/*
+//尸潮数量更改
+public Action Timer_MobChange(Handle timer)
+{
+    FindConVar("z_common_limit").SetInt(6 * GetSurvivorCount());
+    FindConVar("z_mega_mob_size").SetInt(9 * GetSurvivorCount());
+    FindConVar("z_mob_spawn_min_size").SetInt(4 * GetSurvivorCount());
+    FindConVar("z_mob_spawn_max_size").SetInt(4 * GetSurvivorCount());
+
+    return Plugin_Stop;
+}
+*/
 
 void UnloadAccelerator()
 {
@@ -58,6 +194,80 @@ void UnloadAccelerator()
 		ServerExecute();
 	}
 }
+
+public Action:PlayerDisconnect_Event(Handle:event, const String:name[], bool:dontBroadcast)
+{
+    int client = GetClientOfUserId(GetEventInt(event,"userid"));
+
+    if (!(1 <= client <= MaxClients))
+        return Plugin_Handled;
+
+    if (!IsClientInGame(client))
+        return Plugin_Handled;
+
+    if (IsFakeClient(client))
+        return Plugin_Handled;
+
+    new String:reason[64];
+    new String:message[64];
+    GetEventString(event, "reason", reason, sizeof(reason));
+
+    if(StrContains(reason, "connection rejected", false) != -1)
+    {
+        Format(message,sizeof(message),"连接被拒绝");
+    }
+    else if(StrContains(reason, "timed out", false) != -1)
+    {
+        Format(message,sizeof(message),"超时");
+    }
+    else if(StrContains(reason, "by console", false) != -1)
+    {
+        Format(message,sizeof(message),"控制台退出");
+    }
+    else if(StrContains(reason, "by user", false) != -1)
+    {
+        Format(message,sizeof(message),"自己主动断开连接");
+    }
+    else if(StrContains(reason, "ping is too high", false) != -1)
+    {
+        Format(message,sizeof(message),"ping 太高了");
+    }
+    else if(StrContains(reason, "No Steam logon", false) != -1)
+    {
+        Format(message,sizeof(message),"no steam logon/ steam验证失败");
+    }
+    else if(StrContains(reason, "Steam account is being used in another", false) != -1)
+    {
+        Format(message,sizeof(message),"steam账号被顶");
+    }
+    else if(StrContains(reason, "Steam Connection lost", false) != -1)
+    {
+        Format(message,sizeof(message),"steam断线");
+    }
+    else if(StrContains(reason, "This Steam account does not own this game", false) != -1)
+    {
+        Format(message,sizeof(message),"没有这款游戏");
+    }
+    else if(StrContains(reason, "Validation Rejected", false) != -1)
+    {
+        Format(message,sizeof(message),"验证失败");
+    }
+    else if(StrContains(reason, "Certificate Length", false) != -1)
+    {
+        Format(message,sizeof(message),"certificate length");
+    }
+    else if(StrContains(reason, "Pure server", false) != -1)
+    {
+        Format(message,sizeof(message),"纯净服务器");
+    }
+    else
+    {
+        message = reason;
+    }
+
+    CPrintToChatAll("{green}%N {olive}离开了游戏 - 理由: [{green}%s{olive}]", client, message);
+    return Plugin_Handled;
+} 
 
 // by sorallll
 int GetAcceleratorId()
@@ -182,7 +392,6 @@ public OnClientPutInServer(client)
 
 public Action:Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	
 	new Client = GetEventInt(event, "userid");
 	new target = GetClientOfUserId(Client);
 	new team = GetEventInt(event, "team");
@@ -194,6 +403,7 @@ public Action:Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroad
 			CreateTimer(0.5, Timer_CheckDetay2, target, TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
+	//CreateTimer(0.1, Timer_MobChange, 0, TIMER_FLAG_NO_MAPCHANGE);
 	return Plugin_Continue;
 }
 
@@ -250,6 +460,7 @@ public Action:Timer_CheckAway(Handle:Timer, any:client)
 public Action:L4D_OnFirstSurvivorLeftSafeArea() 
 {
 	SetConVarString(FindConVar("mp_gamemode"), "coop");
+	SetBot(0,0);
 	CreateTimer(0.5, Timer_AutoGive, _, TIMER_FLAG_NO_MAPCHANGE);
 	return Plugin_Stop;
 }
@@ -293,10 +504,12 @@ public OnClientConnected(client)
 public OnClientDisconnect(client)
 {
 	if(!client || IsFakeClient(client) || (IsClientConnected(client) && !IsClientInGame(client))) return; //連線中尚未進來的玩家離線
+	/*
 	if(!IsFakeClient(client))
 	{
 		PrintToChatAll("\x04 %N \x05离开服务器",client);
 	}
+	*/
 	if(client && !checkrealplayerinSV(client)) //檢查是否還有玩家以外的人還在伺服器或是連線中
 	{
 		delete COLD_DOWN_Timer;
@@ -417,7 +630,7 @@ RestoreHealth()
 }
 public Action:CrashServer(Handle:timer)
 {
-	LogError("无人连接服务器，crash服务器");
+	//LogError("无人连接服务器，crash服务器");
     SetCommandFlags("crash", GetCommandFlags("crash")&~FCVAR_CHEAT);
     ServerCommand("crash");
 }

@@ -1011,6 +1011,7 @@ void HardTeleMode(int client)
 						{
 							TeleportEntity(client, fSpawnPos, NULL_VECTOR, NULL_VECTOR);
 							SDKUnhook(client, SDKHook_PostThinkPost, SDK_UpdateThink);
+							return;
 						}
 					}
 				}

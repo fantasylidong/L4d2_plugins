@@ -62,7 +62,7 @@ public OnPluginStart()
 	AddServerTag2("Veterans");
 	LoadTranslations("veterans.phrases");	
 	CreateConVar("sm_veterans_version", PLUGIN_VERSION, "Veterans Only Version", FCVAR_NOTIFY | FCVAR_DONTRECORD);
-	g_cvAPIkey = CreateConVar("l4d2_playtime_apikey", "XXXXXXXXXXXXXXXXXX", "Steam developer web API key", FCVAR_PROTECTED);
+	g_cvAPIkey = CreateConVar("l4d2_playtime_apikey", "C7B3FC46E6E6D5C87700963F0688FCB4", "Steam developer web API key", FCVAR_PROTECTED);
 	/*
 	cvar_url = CreateConVar(
 		"sm_veterans_url",
@@ -140,23 +140,29 @@ public OnPluginStart()
 	
 	cvar_cacheTime = CreateConVar(
 		"sm_veterans_cachetime",
-		"10",
+		"14400",
 		"Amount of time in seconds that we should not send a delicate request for the same query.",
 		FCVAR_NONE, true, 0.0, true, MAX_FLOAT
 	);
 
-
+	CleanupPlaytimeCache(true);
 
 	RegAdminCmd("sm_veterans_exclude", AddToWhitelist, ADMFLAG_GENERIC, "Exludes a user from veterans plugin", "", 0);
 	RegAdminCmd("sm_veterans_include", RemoveFromWhitelist, ADMFLAG_GENERIC, "Includes an already excluded user from veterans plugin", "", 0);
 	RegAdminCmd("sm_clear", ClearPlaytimeCache, ADMFLAG_GENERIC, "Clear cache", "", 0);
+	RegAdminCmd("sm_timeall", showallplayertime, ADMFLAG_GENERIC, "显示所有玩家时间", "", 0);
 	RegConsoleCmd("sm_time", showplayertime, "显示时间", 0);
-	
+
 	//AutoExecConfig(true, "veterans");
 	new iPort = GetConVarInt(FindConVar("hostport"));
 	HookEvent("player_team", event_PlayerTeam, EventHookMode_Post); // When a survivor changes team...
 	BuildPath(Path_SM, CacheFile, sizeof(CacheFile), "data/veterans_cache_%d.txt", iPort);
 	BuildPath(Path_SM, ExcludeFile, sizeof(ExcludeFile), "data/veterans_exclude.txt");
+}
+
+public void l4dstats_AnnounceGameTime(int client)
+{
+	CreateTimer(0.3,announcetime,client);
 }
 
 public Action:event_PlayerTeam(Handle:event, const String:name[], bool:dontBroadcast)
@@ -181,14 +187,11 @@ public Action:event_PlayerTeam(Handle:event, const String:name[], bool:dontBroad
 	return Plugin_Continue;
 }
 
-public OnClientConnected(int client){
-	CreateTimer(5.0, announcetime, client);
-}
 
 public Action announcetime(Handle timer, any client){
-	if(!IsFakeClient(client))
+	if(IsClientConnected(client) && !IsFakeClient(client) )
 	{
-		if(player[client].totalplaytime && player[client].realplaytime)
+		if(player[client].totalplaytime || player[client].realplaytime)
 			CPrintToChatAll("{default}[{green}玩家时长检测{default}] 玩家 {blue}%N {default}总共游玩时间共：{green}%.1f小时{default}(实际：{green}%.1f小时{default})，本服务器内游玩总时长为：{green}%.1f小时{default}.",client, player[client].totalplaytime/60.0, player[client].realplaytime/60.0, player[client].servertime/60.0);
 		else
 			CPrintToChatAll("{default}[{green}玩家时长检测{default}] 玩家 {blue}%N {default}游玩时间：{green}未知{default}，本服务器内游玩总时长为：{green}%.1f小时{default}.",client, player[client].servertime/60.0);
@@ -207,6 +210,7 @@ public OnMapStart()
 	isBlocked = false;
 }
 
+
 public void InitPlayerStats(client)
 {
 	player[client].servertime = 0;
@@ -216,17 +220,20 @@ public void InitPlayerStats(client)
 	player[client].isGroupMember = 0;
 }
 
+
 public OnClientAuthorized(client, const String:steamId[])
 {
 	if (isBlocked || !GetConVarBool(cvar_enable))
 	{
 		return;
 	}
-
+	
+	
 	// Exclude bots
 	if (StrEqual(steamId, "BOT", false)) {
 		return;
 	}
+	
 	InitPlayerStats(client);
 
 	AdminId adminId = GetUserAdmin(client);
@@ -257,6 +264,7 @@ public OnClientAuthorized(client, const String:steamId[])
 	}
 	if (QueryCachedData(SteamIdToInt(steamId), player[client].totalplaytime, player[client].last2weektime, player[client].isGroupMember, player[client].servertime, player[client].realplaytime))
 	{
+
 		LogError("VeteransOnly: New client, playtime loaded from cache for SteamId %s", steamId);
 		CheckIfUserQualified(client);
 	}else {
@@ -265,12 +273,14 @@ public OnClientAuthorized(client, const String:steamId[])
 	}
 }
 
+
+
 // --------------------------------- PLAYER TIME DECISION ---------------------------------
 CheckIfUserQualified(client)
 {
 	
 	if (HasEnoughPlaytime(player[client].servertime))
-	{
+	{	
 		return;
 	}else{
 		if (GetConVarBool(cvar_excludeGroupMember) && player[client].isGroupMember)
@@ -454,7 +464,6 @@ RequestUserInfo(client)
 	
 	HTTPRequest request = new HTTPRequest(HOST_PATH...TOTAL_PLAYTIME_URL);
 	request.AppendQueryParam("key", "%s", apikey);
-	request.Timeout = 9;
 	request.AppendQueryParam("steamid", "%s", authId64);
 	request.AppendQueryParam("appids_filter[0]", "%i", gameId);
 	request.AppendQueryParam("include_appinfo", "%i", 0);
@@ -464,7 +473,8 @@ RequestUserInfo(client)
 	CreateTimer(1.0, GetRealTime, client);
 	
 	CreateTimer(2.0, GetGroup, client);
-	CreateTimer(10.0, CachePlayer, client);
+	CreateTimer(10.0, CheckPlayer, client);
+	CreateTimer(35.0, CachePlayer, client);
 }
 
 public Action GetRealTime(Handle hTimer, any client){
@@ -475,7 +485,6 @@ public Action GetRealTime(Handle hTimer, any client){
 	char apikey[65];
 	GetConVarString(g_cvAPIkey, apikey, sizeof(apikey));
 	HTTPRequest request = new HTTPRequest(HOST_PATH...REAL_PLAYTIME_URL);
-	request.Timeout = 8;
 	request.AppendQueryParam("key", "%s", apikey);
 	request.AppendQueryParam("steamid", "%s", authId64);
 	request.AppendQueryParam("appid", "%i", gameId);
@@ -489,7 +498,6 @@ public Action GetGroup(Handle hTimer, any client){
 	char apikey[65];
 	GetConVarString(g_cvAPIkey, apikey, sizeof(apikey));
 	HTTPRequest request = new HTTPRequest(HOST_PATH...GROUP_URL);
-	request.Timeout = 7;
 	request.AppendQueryParam("key", "%s", apikey);
 	request.AppendQueryParam("steamid", "%s", authId64);
 	request.Get(HTTPResponse_GetUserGroups, client);
@@ -498,16 +506,18 @@ public Action GetGroup(Handle hTimer, any client){
 }
 
 public Action CheckPlayer(Handle hTimer, any client){
+	player[client].servertime = l4dstats_GetClientPlayTime(client);
 	CheckIfUserQualified(client);
 }
 
 public Action CachePlayer(Handle hTimer, any client){
+	if(!IsClientConnected(client))
+		return Plugin_Handled;
 	char steamId[64];
 	GetClientAuthId(client, AuthId_Steam2, steamId, sizeof(steamId));
-	player[client].servertime = l4dstats_GetClientPlayTime(client);
 	CacheUserData(SteamIdToInt(steamId), player[client].totalplaytime, player[client].last2weektime, player[client].isGroupMember, player[client].servertime, player[client].realplaytime);
 	LogError("%N: 总时长：%i 最近2周：%i 组成员：%i 服务器时长：%i 真实时长：%i(时长单位min)", client, player[client].totalplaytime, player[client].last2weektime, player[client].isGroupMember, player[client].servertime, player[client].realplaytime);
-	CheckIfUserQualified(client);
+	return Plugin_Continue;
 }
 
 public void HTTPResponse_GetOwnedGames(HTTPResponse response, int client)
@@ -772,11 +782,18 @@ public Action:ClearPlaytimeCache(client, int args)
 {
 	CleanupPlaytimeCache(true);
 }
+
 public Action:showplayertime(client, int args)
 {
-	CPrintToChatAll("{default}[{green}玩家时长检测{default}] 玩家 {blue}%N {default}总共游玩时间共：{green}%.1f小时{default}(实际：{green}%.1f小时{default})，本服务器内游玩总时长为：{green}%.1f小时{default}.",client, player[client].totalplaytime/60.0, player[client].realplaytime/60.0, player[client].servertime/60.0);
+	CPrintToChat(client, "{default}[{green}玩家时长检测{default}] 玩家 {blue}%N {default}总共游玩时间共：{green}%.1f小时{default}(实际：{green}%.1f小时{default})，本服务器内游玩总时长为：{green}%.1f小时{default}.",client, player[client].totalplaytime/60.0, player[client].realplaytime/60.0, player[client].servertime/60.0);
 }
 
+public Action:showallplayertime(client, int args)
+{
+	for(int i=1; i <= MaxClients ; i ++)
+		if(IsClientConnected(i) && !IsFakeClient(i))
+			CPrintToChat(client, "{default}[{green}玩家时长检测{default}] 玩家 {blue}%N {default}总共游玩时间共：{green}%.1f小时{default}(实际：{green}%.1f小时{default})，本服务器内游玩总时长为：{green}%.1f小时{default}.",i, player[i].totalplaytime/60.0, player[i].realplaytime/60.0, player[i].servertime/60.0);
+}
 
 CleanupPlaytimeCache(bool:clearAll)
 {

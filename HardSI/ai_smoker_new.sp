@@ -32,17 +32,17 @@ public Plugin myinfo =
 // ConVars
 ConVar g_hTongueRange, g_hTargetChoose, g_hMeleeAvoid, g_hLeftDistance, g_hDistancePercent, g_hSmokerBhop, g_hSmokerBhopSpeed,g_hSmokerInterval,g_hCvarTongueDelay;
 // Ints
-int g_iTongueRange, g_iTargetChoose, g_iMellePlayer = -1, g_iValidSurvivor = 0;
+int g_iTongueRange, g_iTargetChoose,  g_iValidSurvivor = 0;
 // Bools
-bool g_bMeleeAvoid, bIsBehind[MAXPLAYERS + 1], g_bSmokerBhop,bCanSmoker[MAXPLAYERS + 1];
+bool g_bMeleeAvoid, bIsBehind[MAXPLAYERS + 1], g_bSmokerBhop, bCanSmoker[MAXPLAYERS + 1];
 // Floats
-float g_fMapFlowDistance, g_fLeftDistance, g_fDistancePercent, g_fSmokerBhopSpeed,g_fSmokerInterval;
+float g_fMapFlowDistance, g_fLeftDistance, g_fDistancePercent, g_fSmokerBhopSpeed, g_fSmokerInterval;
 
 public void OnPluginStart()
 {
 	g_hSmokerBhop = CreateConVar("ai_SmokerBhop", "1", "是否开启Smoker连跳", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_hSmokerBhopSpeed = CreateConVar("ai_SmokerBhopSpeed", "80.0", "Smoker连跳的速度", FCVAR_NOTIFY, true, 0.0);
-	g_hTargetChoose = CreateConVar("ai_SmokerTarget", "3", "Smoker优先选择的目标：1=距离最近，2=手持喷子的人（无则最近），3=落单者或超前者（无则最近），4=正在换弹的人（无则最近）", FCVAR_NOTIFY, true, 1.0, true, 4.0);
+	g_hTargetChoose = CreateConVar("ai_SmokerTarget", "1", "Smoker优先选择的目标：1=距离最近，2=手持喷子的人（无则最近），3=落单者或超前者（无则最近），4=正在换弹的人（无则最近）", FCVAR_NOTIFY, true, 1.0, true, 4.0);
 	g_hMeleeAvoid = CreateConVar("ai_SmokerMeleeAvoid", "1", "Smoker的目标如果手持近战则切换目标", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_hSmokerInterval = FindConVar("tongue_hit_delay");
 	g_hLeftDistance = CreateConVar("ai_SmokerLeftBehindDistance", "7.0", "玩家距离团队多远判定为落后或超前", FCVAR_NOTIFY, true, 0.0);
@@ -53,7 +53,7 @@ public void OnPluginStart()
 	// HookEvent
 	HookEvent("round_start", evtRoundStart);
 	HookEvent("player_spawn", evt_PlayerSpawn);
-	HookEvent("player_death", evt_PlayerDeath);
+
 	// AddChangeHooks
 	g_hCvarTongueDelay.AddChangeHook(ConVarChanged_Cvars);
 	g_hSmokerInterval.AddChangeHook(ConVarChanged_Cvars);
@@ -159,6 +159,7 @@ public Action OnPlayerRunCmd(int smoker, int &buttons, int &impulse, float vel[3
 			// 由于舌头需要拉人，所以此时需要判断可见性
 			if (IsSurvivor(iTarget) && bHasSight && !IsIncapped(iTarget) && !IsPinned(iTarget))
 			{
+				
 				if (fDistance < SMOKER_MELEE_RANGE)
 				{
 					buttons |= IN_ATTACK;
@@ -166,7 +167,7 @@ public Action OnPlayerRunCmd(int smoker, int &buttons, int &impulse, float vel[3
 					return Plugin_Changed;
 				}
 				else if (fDistance < g_fDistancePercent * float(g_iTongueRange)&&bCanSmoker[smoker])
-				{
+				{					
 					buttons |= IN_ATTACK2;
 					buttons |= IN_ATTACK;
 					bCanSmoker[smoker]=false;
@@ -179,7 +180,6 @@ public Action OnPlayerRunCmd(int smoker, int &buttons, int &impulse, float vel[3
 		int iVictim = L4D_GetVictimSmoker(smoker);
 		if (IsSurvivor(iVictim))
 		{
-			g_iMellePlayer = -1;
 			bCanSmoker[smoker]=false;
 			CreateTimer(g_fSmokerInterval,CoolDown,smoker);
 		}
@@ -236,12 +236,21 @@ public Action L4D2_OnChooseVictim(int specialInfected, int &curTarget)
 					GetEdictClassname(iActiveWeapon, sWeaponName, sizeof(sWeaponName));
 					if (strcmp(sWeaponName[7], "melee") == 0 || strcmp(sWeaponName, "weapon_chainsaw") == 0)
 					{
-						g_iMellePlayer = curTarget;
-						int newtarget = SmokerTargetChoose(g_iTargetChoose, specialInfected, g_iMellePlayer);
-						if (IsSurvivor(newtarget))
+						int newtarget = SmokerTargetChoose(g_iTargetChoose, specialInfected, curTarget);
+						for (int i = 1; i <= MaxClients; i++)
 						{
-							curTarget = newtarget;
-							return Plugin_Changed;
+							if (IsClientConnected(i) && IsClientInGame(i) && GetClientTeam(i) == view_as<int>(TEAM_SURVIVOR) && i != curTarget)
+							{
+								float self_eye_pos[3] = {0.0}, eye_pos[3] = {0.0};
+								GetClientEyePosition(specialInfected, self_eye_pos);
+								GetClientEyePosition(i, eye_pos);
+								Handle hTrace = TR_TraceRayFilterEx(self_eye_pos, eye_pos, MASK_VISIBLE, RayType_EndPoint, TR_RayFilter, specialInfected);
+								if (!TR_DidHit(hTrace) && GetVectorDistance(self_eye_pos, eye_pos) < 600.0 && IsSurvivor(newtarget))
+								{
+									curTarget = newtarget;
+									return Plugin_Changed;
+								}
+							}
 						}
 					}
 				}
@@ -249,6 +258,10 @@ public Action L4D2_OnChooseVictim(int specialInfected, int &curTarget)
 		}
 	}
 	return Plugin_Continue;
+}
+bool TR_RayFilter(int entity, int mask, int self)
+{
+	return entity != self;
 }
 
 bool IsAiSmoker(int client)
@@ -275,16 +288,6 @@ bool IsPinned(int client)
 		if(GetEntPropEnt(client, Prop_Send, "m_jockeyAttacker") > 0) bIsPinned = true;
 	}		
 	return bIsPinned;
-}
-
-// 舌头死亡
-public void evt_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
-{
-	int client = GetClientOfUserId(event.GetInt("userid"));
-	if (IsAiSmoker(client))
-	{
-		g_iMellePlayer = -1;
-	}
 }
 
 // 团队近战检测
@@ -443,7 +446,7 @@ int SmokerTargetChoose(int iMethod, int iSmoker, int iSpecificTarget = -1)
 bool IsInReload(int client)
 {
 	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-	if (IsValidEntity(weapon) && IsValidEdict(weapon) && weapon > 0 && HasEntProp(weapon, Prop_Data, "m_bInReload"))
+	if (IsValidEntity(weapon) && IsValidEdict(weapon) && HasEntProp(weapon, Prop_Data, "m_bInReload"))
 	{
 		if (GetEntProp(weapon, Prop_Data, "m_bInReload") == 1)
 		{

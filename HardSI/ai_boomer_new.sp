@@ -40,7 +40,7 @@ public void OnPluginStart()
 	// CreateConVar
 	g_hBoomerBhop = CreateConVar("ai_BoomerBhop", "1", "是否开启Boomer连跳", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_hBoomerJumpAbility = CreateConVar("ai_BoomerJumpAbility", "1", "是否开启Boomer跳吐", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	g_hBoomerBhopSpeed = CreateConVar("ai_BoomerBhopSpeed", "120.0", "Boomer连跳的速度", FCVAR_NOTIFY, true, 0.0);
+	g_hBoomerBhopSpeed = CreateConVar("ai_BoomerBhopSpeed", "150.0", "Boomer连跳的速度", FCVAR_NOTIFY, true, 0.0);
 	g_hBoomerAirAngles = CreateConVar("ai_BoomerAirAngles", "60.0", "Boomer在空中的速度向量与到生还者的方向向量夹角大于这个值停止连跳", FCVAR_NOTIFY, true, 0.0);
 	g_hVomitRange = FindConVar("z_vomit_range");
 	// HookEvents
@@ -168,7 +168,7 @@ public Action OnPlayerRunCmd(int boomer, int &buttons, int &impulse, float vel[3
 			buttons &= ~IN_JUMP;
 			buttons &= ~IN_DUCK;
 		}
-		/*
+
 		// SDKCall，强行被喷
 		if (buttons & IN_ATTACK && bCanVomit[boomer])
 		{
@@ -183,7 +183,7 @@ public Action OnPlayerRunCmd(int boomer, int &buttons, int &impulse, float vel[3
 					float fTargetDistance;
 					GetClientAbsOrigin(client, fTargetPos);
 					fTargetDistance = GetVectorDistance(fSelfPos, fTargetPos);
-					if (fTargetDistance <= g_fVomitRange-50)
+					if (fTargetDistance <= 100)
 					{
 						VomitPlayer(client, boomer);
 					}
@@ -191,10 +191,58 @@ public Action OnPlayerRunCmd(int boomer, int &buttons, int &impulse, float vel[3
 			}
 			CreateTimer(fVomitInterval, Timer_VomitCoolDown, boomer, TIMER_FLAG_NO_MAPCHANGE);
 		}
-		*/
 	}
 	return Plugin_Continue;
 }
+
+void ComputeAimAngles(int client, int target, float angles[3], AimType type = AimEye)
+{
+	if(client<0||client>MaxClients||target<0||target>MaxClients)
+		return;
+	float selfpos[3], targetpos[3], lookat[3];
+	GetClientEyePosition(client, selfpos);
+	switch (type)
+	{
+		case AimEye:
+		{
+			GetClientEyePosition(target, targetpos);
+		}
+		case AimBody:
+		{
+			GetClientAbsOrigin(target, targetpos);
+		}
+		case AimChest:
+		{
+			GetClientAbsOrigin(target, targetpos);
+			targetpos[2] += 45.0;
+		}
+	}
+	MakeVectorFromPoints(selfpos, targetpos, lookat);
+	GetVectorAngles(lookat, angles);
+}
+bool traceFilter(int entity, int mask, int self)
+{
+	return entity != self;
+}
+bool IsVisible(int client, int target)
+{
+	bool bCanSee = false;
+	float selfpos[3], angles[3];
+	GetClientEyePosition(client, selfpos);
+	ComputeAimAngles(client, target, angles);
+	Handle hTrace = TR_TraceRayFilterEx(selfpos, angles, MASK_SOLID, RayType_Infinite, traceFilter, client);
+	if (TR_DidHit(hTrace))
+	{
+		int hit = TR_GetEntityIndex(hTrace);
+		if (hit == target)
+		{
+			bCanSee = true;
+		}
+	}
+	delete hTrace;
+	return bCanSee;
+}
+
 
 void VomitPlayer(int target, int boomer)
 {

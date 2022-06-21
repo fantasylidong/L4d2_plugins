@@ -24,11 +24,9 @@ enum struct PlayerStruct{
 	CustomTags tags;
 }
 PlayerStruct player[MAXPLAYERS + 1];
-ConVar GaoJiRenJi;
 bool valid=true;
 bool IsStart=false;
-int InfectedNumber=6;
-ConVar g_InfectedNumber;
+
 //new lastpoints[MAXPLAYERS + 1];
 
 //枚举变量,修改武器消耗积分在此。
@@ -77,7 +75,7 @@ enum TEAM
     Team_Survivor = 2,
     Team_Infected = 3
 };
-ConVar ReturnBlood;
+
 //插件开始
 public Plugin myinfo =
 {
@@ -168,30 +166,23 @@ public void  OnPluginStart()
 {
 //	LoadTranslations("menu_shop.phrases.txt");
 	HookEvent("round_start",EventRoundStart);
-	HookEvent("player_death", EventReturnBlood);
 	HookEvent("player_spawn", 	Event_Player_Spawn);
 	HookEvent("mission_lost",EventMissionLost);
 	HookEvent("map_transition", EventMapChange);
 	HookEvent("player_afk", 	Event_PlayerAFK);
 	//HookEvent("player_team", 	Event_PlayerTeam, EventHookMode_Pre);
-	GaoJiRenJi=FindConVar("sb_fix_enabled");
-	InfectedNumber=GetConVarInt(FindConVar("l4d_infected_limit"));
-	g_InfectedNumber=FindConVar("l4d_infected_limit");
-	g_InfectedNumber.AddChangeHook(ConVarChanged_Cvars);
-	GaoJiRenJi.AddChangeHook(ConVarChanged_Cvars);
-	ReturnBlood = CreateConVar("ReturnBlood", "0", "回血模式");
-	RegConsoleCmd("sm_buy", BuyMenu, "打开购买菜单(只能在游戏中)");
-	RegConsoleCmd("sm_ammo", BuyAmmo, "快速买子弹");
-	RegConsoleCmd("sm_pen", BuyPen, "快速随机买一把单喷");
-	RegConsoleCmd("sm_chr", BuyChr, "快速买一把二代单喷");
-	RegConsoleCmd("sm_pum", BuyPum, "快速买一把一代单喷");
-	RegConsoleCmd("sm_smg", BuySmg, "快速买smg");
-	RegConsoleCmd("sm_uzi", BuyUzi, "快速买uzi");
-	RegConsoleCmd("sm_pill", BuyPill, "快速买药");
+	//RegConsoleCmd("sm_buy", BuyMenu, "打开购买菜单(只能在游戏中)");
+	//RegConsoleCmd("sm_ammo", BuyAmmo, "快速买子弹");
+	//RegConsoleCmd("sm_pen", BuyPen, "快速随机买一把单喷");
+	//RegConsoleCmd("sm_chr", BuyChr, "快速买一把二代单喷");
+	//RegConsoleCmd("sm_pum", BuyPum, "快速买一把一代单喷");
+	//RegConsoleCmd("sm_smg", BuySmg, "快速买smg");
+	//RegConsoleCmd("sm_uzi", BuyUzi, "快速买uzi");
+	//RegConsoleCmd("sm_pill", BuyPill, "快速买药");
 	RegConsoleCmd("sm_setch", SetCH, "设置自定义称号");
 	RegConsoleCmd("sm_applytags", ApplyTags, "佩戴自定义称号");
-	RegConsoleCmd("sm_rpg", BuyMenu, "打开购买菜单(只能在游戏中)");
-	RegAdminCmd("sm_rpginfo", RpgInfo, ADMFLAG_ROOT ,"输出rpg人物信息");
+	//RegConsoleCmd("sm_rpg", BuyMenu, "打开购买菜单(只能在游戏中)");
+	//RegAdminCmd("sm_rpginfo", RpgInfo, ADMFLAG_ROOT ,"输出rpg人物信息");
 	for(int i=1;i<MaxClients;i++){
 			player[i].ClientPoints=500;
 			player[i].ClientFirstBuy=true;
@@ -211,15 +202,6 @@ public void OnConfigsExecuted()
 // *********************
 //		获取Cvar值
 // *********************
-void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
-{
-	if(IsStart)
-		{
-			PrintToChatAll("\x04[RANK]判断额外积分所需变量发生变化，此局无法获得额外积分");
-			valid=false;
-		}
-	InfectedNumber=GetConVarInt(FindConVar("l4d_infected_limit"));
-}
 
 public void Event_PlayerAFK( Event hEvent, const char[] sName, bool bDontBroadcast )
 {
@@ -298,8 +280,6 @@ public int IsPlayerIncap(int client)
 }
 
 public Action EventMapChange(Handle event, const char []name, bool dontBroadcast){
-	if(CheckAllMoney()&&valid)
-		RewardScore();
 	for(int i=1;i<MaxClients;i++){
 		player[i].ClientPoints=500;
 		player[i].ClientFirstBuy=true;
@@ -308,41 +288,7 @@ public Action EventMapChange(Handle event, const char []name, bool dontBroadcast
 	valid=true;
 }
 
-public void RewardScore(){
-	char pluginsname[64];
-	int renji=0;
-	GetConVarString(FindConVar("sv_tags"), pluginsname, sizeof(pluginsname));
-	if(StrContains(pluginsname,"anne")==-1)
-		return;
-	renji=GetConVarInt(FindConVar("sb_fix_enabled"));
-	if(renji){
-		PrintToChatAll("\x04[RANK]由于开启了高级人机，不能获得额外过关积分");
-		return;
-	}
-	if(valid){
-			if(InfectedNumber==5)
-				AddReward(200);
-			if(InfectedNumber==6)
-				AddReward(500);
-			if(InfectedNumber==7)
-				AddReward(800);
-			if(InfectedNumber==8)
-				AddReward(1100);
-			if(InfectedNumber==9)
-				AddReward(1500);
-			if(InfectedNumber>9)
-				AddReward(2000);
-		}
-	valid=true;
-}
 
-public void AddReward(int Score){
-	for(int i=1;i<MaxClients;i++){
-		if(IsSurvivor(i))
-			ClientMapChangeWithoutBuyReward(i,Score);
-	}
-	PrintToChatAll("\x04[RANK]幸存者强势通过当前关卡，没花费任何B数，获得额外%d过关积分",Score);
-}
 
 public Action EventMissionLost(Handle event, const char []name, bool dontBroadcast){
 	for(int i=1;i<MaxClients;i++){
@@ -355,36 +301,6 @@ public Action EventMissionLost(Handle event, const char []name, bool dontBroadca
 
 
 
-public void EventReturnBlood(Handle event, const char []name, bool dontBroadcast){
-	int victim = GetClientOfUserId(GetEventInt(event, "userid", 0));
-	DisableGlow( victim );
-	int attacker = GetClientOfUserId(GetEventInt(event, "attacker", 0));
-	int var2 = victim;
-	if (MaxClients >= var2 && 1 <= var2)
-	{
-		if (GetClientTeam(victim) == 3)
-		{
-			if (IsSurvivor(attacker))
-			{
-					if (GetConVarBool(ReturnBlood))
-					{
-						int maxhp = GetEntProp(attacker, Prop_Data, "m_iMaxHealth", 4, 0);
-						int targetHealth = GetSurvivorPermHealth(attacker);
-						if(player[attacker].ClientBlood>0)
-							targetHealth += 2;
-						if (targetHealth > maxhp)
-						{
-							targetHealth = maxhp;
-						}
-						if (!IsPlayerIncap(attacker))
-						{
-							SetSurvivorPermHealth(attacker, targetHealth);
-						}
-					}
-			}
-		}
-	}
-}
 
 public bool ConnectDB()
 {
@@ -395,6 +311,7 @@ public bool ConnectDB()
 	{
 		char Error[256];
 		db = SQL_Connect("l4dstats", true, Error, sizeof(Error));
+
 		if (db == INVALID_HANDLE)
 		{
 			LogError("Failed to connect to database: %s", Error);
@@ -496,7 +413,7 @@ public Action CheckPlayer(Handle timer, int client)
 	}
 	if(change)	
 		ClientSaveToFileSave(client);
-		*/
+	*/
 	if(player[client].GlowType || player[client].ClientHat)
 		SetPlayer(client);
 }
@@ -524,57 +441,6 @@ public int BypassAndExecuteCommand(int client, char []strCommand, char []strPara
 	SetCommandFlags(strCommand, flags);
 }
 
-public Action Timer_AutoGive(Handle timer, any client)
-{
-	if (player[client].ClientMelee == 1)
-	{
-		BypassAndExecuteCommand(client, "give", "machete");
-	}
-	if (player[client].ClientMelee == 2)
-	{
-		BypassAndExecuteCommand(client, "give", "fireaxe");
-	}
-	if (player[client].ClientMelee == 3)
-	{
-		BypassAndExecuteCommand(client, "give", "knife");
-	}
-	if (player[client].ClientMelee == 4)
-	{
-		BypassAndExecuteCommand(client, "give", "katana");
-	}
-	if (player[client].ClientMelee == 5)
-	{
-		BypassAndExecuteCommand(client, "give", "pistol_magnum");
-	}
-	if (player[client].ClientMelee == 6)
-	{
-		BypassAndExecuteCommand(client, "give", "electric_guitar");
-	}
-	if (player[client].ClientMelee == 7)
-	{
-		BypassAndExecuteCommand(client, "give", "tonfa");
-	}
-	if (player[client].ClientMelee == 8)
-	{
-		BypassAndExecuteCommand(client, "give", "pitchfork");
-	}
-	if (player[client].ClientMelee == 9)
-	{
-		BypassAndExecuteCommand(client, "give", "shovel");
-	}
-	if (player[client].ClientMelee == 10)
-	{
-		BypassAndExecuteCommand(client, "give", "pistol");
-	}
-	if (player[client].ClientMelee == 11)
-	{
-		BypassAndExecuteCommand(client, "give", "frying_pan");
-	}
-	if (player[client].ClientMelee == 12)
-	{
-		BypassAndExecuteCommand(client, "give", "crowbar");
-	}		
-}
 public void ClientMapChangeWithoutBuyReward(int Client,int RewordScore){
 	if(!IsValidClient(Client) || IsFakeClient(Client))
 		return;
@@ -634,7 +500,7 @@ public void ClientTagsSaveToFileSave(int Client)
 	GetClientAuthId(Client, AuthId_Steam2,SteamID, sizeof(SteamID));
 	if(StrEqual(SteamID,"BOT"))return;
 	CPrintToChat(Client,"\x04你的称号更新成功，新称号为：\x03%s",player[Client].tags.ChatTag);
-	Format(query, sizeof(query), "UPDATE RPG SET CHATTAG='%s' WHERE steamid = '%s'", player[Client].tags.ChatTag, SteamID);	
+	Format(query, sizeof(query), "UPDATE RPG SET CHATTAG='%s' WHERE steamid = '%s'",player[Client].tags.ChatTag, SteamID);	
 	SendSQLUpdate(query);
 	return;
 }
@@ -643,11 +509,6 @@ public void ClientTagsSaveToFileSave(int Client)
 //开局发近战能力武器
 public Action L4D_OnFirstSurvivorLeftSafeArea(int client)
 {
-	for(int i=1;i<MaxClients;i++)
-		if(IsSurvivor(i))
-		{
-			CreateTimer(0.5, Timer_AutoGive, i, TIMER_FLAG_NO_MAPCHANGE);
-		}
 	IsStart=true;
 	valid=true;
 	return Plugin_Stop;
@@ -808,7 +669,7 @@ public Action ApplyTags(int client,int args)
 	if(player[client].tags.ChatTag[0] != '\0')
 		SetTags(client,player[client].tags.ChatTag);
 	else
-		CPrintToChat(client,"\x04你必须先用\x03!setch \"你想要的称号名字\" \x04设置好你的自定义称号");
+		CPrintToChat(client,"\x04你必须先用\x03!setch \"你想要的称号名字\"\x04 设置好你的自定义称号");
 }
 
 //设置称号指令
@@ -830,7 +691,7 @@ public Action SetCH(int client,int args)
 	}
     GetCmdArg(1, player[client].tags.ChatTag, 24);
     
-    if(IsNullString(player[client].tags.ChatTag) || strlen(player[client].tags.ChatTag) == 0 || player[client].tags.ChatTag[0] == '\0')
+    if(strlen(player[client].tags.ChatTag)==0 || IsNullString(player[client].tags.ChatTag) || player[client].tags.ChatTag[0] == '\0')
     {
     	ReplyToCommand(client,"\x03错误名字长度");
     	return Plugin_Handled;
@@ -901,9 +762,6 @@ public void ShowMelee(Handle owner, Handle hndl, const char []error, any data)
         player[client].ClientBlood = SQL_FetchInt(hndl, 1);
         player[client].ClientHat = SQL_FetchInt(hndl, 2);
         player[client].GlowType = SQL_FetchInt(hndl, 3);
-        /*if(SQL_IsFieldNull(hndl,4))
-        	strcopy(player[client].tags.ChatTag,32,"NULL");
-        else*/
         SQL_FetchString(hndl, 4, player[client].tags.ChatTag, 24);
 		//PrintToChat(client,"\x03返回的ClientMelee：%d",player[client].ClientMelee);
 		//PrintToChat(client,"\x03返回的ClientBlood：%d",player[client].ClientBlood);
@@ -957,10 +815,7 @@ public void BuildMenu(int client)
 
 		FormatEx(binfo, sizeof(binfo),  "出门近战技能", client); //技能菜单
 		menu.AddItem("ability", binfo);
-		if (GetConVarBool(ReturnBlood)){
-			FormatEx(binfo, sizeof(binfo),  "回血技能", client); //技能菜单
-			menu.AddItem("Blood", binfo);
-		}
+
 		
 		FormatEx(binfo, sizeof(binfo),  "称号菜单", client); //称号菜单
 		menu.AddItem("ChatTags", binfo);

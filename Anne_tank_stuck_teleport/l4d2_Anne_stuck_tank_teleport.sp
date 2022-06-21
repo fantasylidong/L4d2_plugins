@@ -71,12 +71,12 @@ public void OnPluginStart()
 {
 	CreateConVar(							"l4d2_Anne_stuck_tank_teleport",				PLUGIN_VERSION,	"Plugin version", FCVAR_DONTRECORD );
 	g_hCvarEnable = CreateConVar(			"l4d2_Anne_stuck_tank_teleport_enable",					"1",		"Enable plugin (1 - On / 0 - Off)", CVAR_FLAGS );	
-	g_hCvarStuckInterval = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_check_interval",			"1",		"Time intervals (in sec.) tank stuck should be checked", CVAR_FLAGS );
-	g_hCvarNonStuckRadius = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_non_stuck_radius",		"15",		"Maximum radius where tank is cosidered non-stucked when not moved during X (9) sec. (see l4d2_Anne_stuck_tank_teleport_check_interval ConVar)", CVAR_FLAGS );
+	g_hCvarStuckInterval = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_check_interval",			"3",		"Time intervals (in sec.) tank stuck should be checked", CVAR_FLAGS );
+	g_hCvarNonStuckRadius = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_non_stuck_radius",		"20",		"Maximum radius where tank is cosidered non-stucked when not moved during X (9) sec. (see l4d2_Anne_stuck_tank_teleport_check_interval ConVar)", CVAR_FLAGS );
 	g_hCvarRusherPunish = CreateConVar(		"l4d2_Anne_stuck_tank_teleport_rusher_punish",			"1",		"Punish the player who rush too far from the nearest tank by teleporting tank to him? (0 - No / 1 - Yes)", CVAR_FLAGS );
-	g_hCvarRusherDist = CreateConVar(		"l4d2_Anne_stuck_tank_teleport_rusher_dist",			"2500",		"Maximum distance to the nearest tank considered as rusher", CVAR_FLAGS );
-	g_hCvarRusherCheckTimes = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_rusher_check_times",		"3",		"Number of checks before finally considering player as rusher", CVAR_FLAGS );
-	g_hCvarRusherCheckInterv = CreateConVar("l4d2_Anne_stuck_tank_teleport_rusher_check_interval",	"5",		"Interval (in sec.) between each check for rusher", CVAR_FLAGS );	
+	g_hCvarRusherDist = CreateConVar(		"l4d2_Anne_stuck_tank_teleport_rusher_dist",			"3000",		"Maximum distance to the nearest tank considered as rusher", CVAR_FLAGS );
+	g_hCvarRusherCheckTimes = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_rusher_check_times",		"6",		"Number of checks before finally considering player as rusher", CVAR_FLAGS );
+	g_hCvarRusherCheckInterv = CreateConVar("l4d2_Anne_stuck_tank_teleport_rusher_check_interval",	"3",		"Interval (in sec.) between each check for rusher", CVAR_FLAGS );	
 	g_hCvarRusherMinPlayers = CreateConVar(	"l4d_TankAntiStuck_rusher_minplayers",		"2",		"Minimum living players allowed for 'Rusher player' rule to work", CVAR_FLAGS );
 	HookEvent("tank_spawn",       		Event_TankSpawn,  	EventHookMode_Post);
 	HookEvent("player_death",   		Event_PlayerDeath,	EventHookMode_Pre);
@@ -229,26 +229,43 @@ bool IsOnValidMesh(float fReferencePos[3])
 		return false;
 	}
 }
-bool IsPlayerStuck(float fSpawnPos[3],int client)
+// 向量复制
+stock void CopyVectors(float origin[3], float result[3])
 {
-	bool IsStuck = true;
-	float fMins[3] = {0.0}, fMaxs[3] = {0.0}, fNewPos[3] = {0.0};
-	GetClientMaxs(client,fMaxs);
-	GetClientMins(client,fMins);
-	fNewPos = fSpawnPos;
-	fNewPos[2] += 140.0;
-	TR_TraceHullFilter(fSpawnPos, fNewPos, fMins, fMaxs, MASK_NPCSOLID_BRUSHONLY, TraceRay_NoPlayers, client);
-	IsStuck = TR_DidHit();
-	return IsStuck;
+	result[0] = origin[0];
+	result[1] = origin[1];
+	result[2] = origin[2];
 }
-public bool TraceRay_NoPlayers(int entity, int mask, any data)
+bool IsPlayerStuck(float refpos[3], int client)
 {
-    if(entity == data || (entity >= 1 && entity <= MaxClients))
-    {
-        return false;
-    }
-    return true;
+	bool stuck = false;
+	float client_mins[3] = {0.0}, client_maxs[3] = {0.0}, up_hull_endpos[3] = {0.0};
+	GetClientMins(client, client_mins);
+	GetClientMaxs(client, client_maxs);
+	CopyVectors(refpos, up_hull_endpos);
+	up_hull_endpos[2] += 92.0;
+	TR_TraceHullFilter(refpos, up_hull_endpos, client_mins, client_maxs, MASK_NPCSOLID_BRUSHONLY, TR_EntityFilter);
+	stuck = TR_DidHit();
+	return stuck;
 }
+bool TR_EntityFilter(int entity, int mask)
+{
+	if (entity <= MaxClients)
+	{
+		return false;
+	}
+	else if (entity > MaxClients)
+	{
+		char classname[16] = '\0';
+		GetEdictClassname(entity, classname, sizeof(classname));
+		if (strcmp(classname, "infected") == 0 || strcmp(classname, "witch") == 0 || strcmp(classname, "prop_physics") == 0 || strcmp(classname, "tank_rock") == 0)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 public void TeleportTank(int client){
 		static float fEyePos[3] = {0.0}, fSelfEyePos[3] = {0.0};
 		GetClientEyePosition(client, fEyePos);
@@ -310,13 +327,14 @@ public void TeleportTank(int client){
 					if (IsClientInGame(index))
 					{
 						GetClientEyePosition(index, fSurvivorPos);
-						fSurvivorPos[2] -= 40.0;
-						if (L4D2_VScriptWrapper_NavAreaBuildPath(fSpawnPos, fSurvivorPos, 1000.0, false, false, TEAM_INFECTED, false))
+						fSurvivorPos[2] -= 60.0;
+						if (L4D2_VScriptWrapper_NavAreaBuildPath(fSpawnPos, fSurvivorPos, 1200.0, false, false, TEAM_INFECTED, false))
 						{
 							//把tank传送高度稍微提高防止卡住
-							fSpawnPos[2] += 20.0;
+							fSpawnPos[2] += 10.0;
 							TeleportEntity(client, fSpawnPos, NULL_VECTOR, NULL_VECTOR);
 							PrintToChatAll("\x03Tank被卡住了开始传送.");
+							return;
 						}
 					}
 				}
@@ -439,7 +457,7 @@ public Action Timer_CheckRusher(Handle timer) {
 					if (distance > g_hCvarRusherDist.FloatValue) {
 						
 						if (g_iRushTimes[i] >= g_hCvarRusherCheckTimes.IntValue && L4D2Direct_GetFlowDistance(tank)<L4D2Direct_GetFlowDistance(i) && !L4D_IsMissionFinalMap() && !SAFEDETECT_IsEntityInEndSaferoom(i)) {
-							PrintToConsoleAll("tank与\x03%N的距离为：%f，坦克的路程为:%f，生还者的路程为:%f",distance,L4D2Direct_GetFlowDistance(tank),L4D2Direct_GetFlowDistance(i));
+							//PrintToConsoleAll("tank与\x03%N的距离为：%f，坦克的路程为:%f，生还者的路程为:%f",distance,L4D2Direct_GetFlowDistance(tank),L4D2Direct_GetFlowDistance(i));
 							TeleportToSurvivorInPlace(tank, i);
 							PrintToChatAll("\x03%N \x04 因为当求生跑男，Tank开始传送惩罚.", i);
 														
@@ -546,7 +564,7 @@ public Action Timer_CheckPos(Handle timer, int UserId)
 		//PrintToConsoleAll("tank目前位置和前位置相差:%f",distance);
 		if (distance < g_hCvarNonStuckRadius.FloatValue && !IsIncappedNearBy(pos) && !IsTankAttacking(tank)) {
 			
-			if ( g_iStuckTimes[tank] > 5) {
+			if ( g_iStuckTimes[tank] > 6) {
 				TeleportTank(tank);
 			}
 			g_iStuckTimes[tank]++;

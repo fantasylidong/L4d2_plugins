@@ -1,210 +1,3 @@
-/*
------------------------------------------------------------------------------
-LEFT 4 DEAD STATS - SOURCEMOD PLUGIN
------------------------------------------------------------------------------
-Initial Code for Left 4 Dead 1 Written By msleeper (c) 2009
------------------------------------------------------------------------------
-Major Part Of The Code Written By muukis (c) 2010-2012
------------------------------------------------------------------------------
-This is a ranking/stat tracking system for Left 4 Dead Co-op. It will track
-certain actions, such as giving a teammate Pills or rescuing them from a
-Hunter, as well as tracking kills of the types of Infected. The goal of the
-stats is both to rank players against one another, but also to promote
-teamwork by awarding more points for completing team-specific goals rather
-than simply basing on kills.
-
-You can access your basic rank information by typing "rank" or "/rank" in
-the chat area. You can access the Top 10 Players by typing "top10" or
-"/top10" in the chat area.
-
-The plugin ONLY works in Co-op mode, in every difficulty but Easy. Stats
-will automatically stop tracking if any of these conditions are met:
- . Game is in Easy difficulty
- . sv_cheats is set to "1"
- . There are not enough Human players, as determined by a Cvar
- . The Database connection has failed
-
-The webstats portion provides more in-depth stat information, both for
-individual players as well as the server as a whole, with full campaign and
-map stat info. More information about webstats can be found in the webstats
-ZIP file.
-
-Special thanks to DopeFish, Icettiflow, jasonfrog, and liv3d for helping me
-beta test prior to full public release.
-
-Thank you and enjoy!
-- msleeper
------------------------------------------------------------------------------
-A little notice on my behalf as well:
-
-I'd like to send my special thanks to Harm and Titan for the testing done
-when adding support to L4D2. This would not have been possible to accomplish
-in this timeframe, if it wasn't for them! Planetsize thanks guys!
-
-- muukis
------------------------------------------------------------------------------
-To Do List (Minor)
- . Fix minor bug with Campaign tracking
- . Add multilingual support
-
-To Do List (Major)
- . Add "Squad" system
- . Add grace period and cooldown to Friendly Fire
- . Add achievement system
- . Add Survival support
- . Versus statistics
-   . Smoker pull award (length)
-   . Tank incapacitated or killed all players
------------------------------------------------------------------------------
-Version History
-
--- 0.1.0 (1/8/09)
- . Initial closed beta release!
-
--- 0.1.1 (1/9/09)
- . Silenced plugin disable alerts, except "not enough Human players" alert.
- . Removed misc debug message.
- . Fixed misc error log messages.
-
--- 0.1.2 (1/12/09)
- . Testing new interstitial SQL method for Common Infected kill tracking.
-   Instead of sending a SQL transaction after each kill, only send SQL during
-   the update period when Common Infected points are displayed. The high
-   amount of SQL traffic causes noticible lag during high combat periods,
-   such as when a mob attacks.
-
--- 0.1.6 (1/13/09)
- . Fully implimented interstitial SQL update for Common Infected. Added
-   check to send update when a player disconnects, so no points are lost if
-   they disconnect between interstitial updates.
- . Cleaned up code a bit.
- . Improved player name sanitation.
- . Changed new players playtime to init at 1 instead of 0.
- . Changed point amounts from static values to Cvar values.
- . Added Cvar to control how stats messages are displayed to players:
-    0 = Stats messages are off
-    1 = Messages sent to the player who earned them only
-    2 = Same as 1, but Headshots on Special Infected are globally anounced
-    3 = All messages are global. Warning: This is VERY annoying!
- . Added Cvar to control whether Medkit points are given based on the amount
-   healed, or a static amount set by Cvar. Amount healed is 0.5x in Normal,
-   1x in Advanced, and 2x in Expert.
- . Added check to disable stats if the Database connection has failed.
-
--- 0.1.8 (1/15/09)
- . Further cleaned up code.
- . Optimized UTF8 character support.
- . Removed log message on successful database connection.
- . Added threaded query to player inserting, to check if the player already
-   exists and if so, don't attempt to INSERT IGNORE them.
- . Reformatted rank panels.
- . Added Cvar to list community site for more information in "rank" panel.
- . Removed table generation from the plugin. This will be handled by a
-   setup script provided with webstats.
-
--- 0.1.9 (1/16/09)
- . Changed all updates to threaded queries, to fix lag caused by updates and
-   server timeouts in rare cases.
-
--- 1.0.0 (1/18/09)
- . Initial public release!
-
--- 1.1.0 (1/25/09)
- . Fixed change in update/Common Infected announcement timer not obeying
-   changes to the cvar, except when in the config file and the plugin/server
-   is restarted.
- . Fixed team chat not picking up chat triggers.
- . Added invalid database connection checking to rank/top10 panel display.
- . Fixed bug where players would be inserted into the database, but their
-   user data would not get updated and they would appear blank.
- . Removed plugin version from showing up in the config file.
- . Removed "Not enough Humans" message when in Versus.
- . Made rank panel display after client connect at the start of each map,
-   and added cvar to enable/disable this.
- . Made "Playtime" display hours if the playtime is longer than 60 minutes.
- . Added cvar to hide the display of public chat triggers.
--- 1.1.1 (4/22/09)
- . Changed "IsVersus()" function to "InvalidGameMode()" to fix deadstop bug
-   with the Survival update. This is part of paving the way to Survival
-   and Versus stats in a future release.
- . Fixed various error messages in error logs.
- . Fixed stats panel to now work properly for people with certain characters
-   in their name not making it display.
- . Fixed (again) a certain case where blank users would be inserted.
- . Added cvar to enable/disable showing of the rank panel when not in a valid
-   gamemode, showing of disabled messages, and letting players use the chat
-   commands.
- . Added some stat whoring checks to the plugin:
-    . A maximum amount of points can be earned in a single map
-    . Only 3 Tanks may be awarded during a single map
- . Fixed minor bug with Healthpack point award not giving full amount.
- . Added a few currently unused cvars for future features:
-   . sm_l4dstats_dbprefix -- Prefix to be used for database tables
-   . sm_l4dstats_enablecoop -- Enable stats for Coop mode
-   . sm_l4dstats_enablesv -- Enable stats for Survival mode
-   . sm_l4dstats_enableversus -- Enable stats for Versus mode
-   . sm_l4dstats_leaderboardtime -- Duration in days to show players top
-     times on the Survival leaderboards
-
--- 1.1.1C (8/19/09) Customized by muukis
- . Added support for custom maps.
-
--- 1.2AXXX (9/23/09) Alpha versions from Versus support
- . Started implementing the Versus support. (IT COMPILES!!!1)
-
--- 1.2BXXX (10/16/09) Beta versions from Versus support
- . All new major features that I could come up with are now implemeted:
-   . Survivor friendly fire cooldown mode.
-   . Survivor medkit use penalty (score reduction.)
-   . Spam protection allowing team gain and loss information to be shown
-     for the team only.
-   . Infected score:
-     . General: Damage done to the survivors.
-     . General: Damage done by normal infected is forwarded to the specials
-       that have influence over the victim (blinded, lunged or paralyzed.)
-     . General: Incapacitate and kill a survivor.
-     . Hunter pounces.
-     . Boomer blindings.
-     . Tank rock sniper.
-
--- 1.2B90 (12/07/09) "Conversion" to Left 4 Dead 2
-
--- 1.3AXXX (12/11/09) Alpha versions from L4D2 support
-
--- 1.3BXXX (12/11/09) Beta versions from L4D2 support
- . Support for L4D2:
-   . Support for Realism and Team Versus gamemodes.
-   . Adrenalines given.
-   . Defibrillators used.
-   . New stats for every new Special Infected (in addition to spawned counter and damage counter):
-     . Jockey:
-       . Ride length (time)
- . Survivor damage based friendly fire mode.
- . "Player Stats" object in Admin Menu.
- . New console command "sm_rank_clear" to clear database.
-
--- 1.4AXXX (12/11/09) Alpha versions from Survival and Scavenge support
-
--- 1.4BXXX (X/X/10) Beta versions from Survival and Scavenge support
- . Support for all gamemodes!
- . Support for L4D2:
-   . Gas canister poured.
-   . Ammo upgrade deployed.
- . New console commands:
-   . sm_rank_shuffle -- Shuffle teams (Versus / Scavenge) with player PPM (Points Per Minute).
-   . sm_rankvote -- Initiate team shuffle vote ("rankvote").
-   . sm_top10ppm -- Show Top10 players with highest PPM (Points Per Minute).
-   . sm_showrank -- Show currently playing players stats.
-   . sm_showppm -- Show currently playing players PPM (Points Per Minute).
-   . sm_timedmaps -- Show all map timings.
-   . sm_maptimes -- Show current map timings.
-   . sm_rankmenu -- Show rank menu.
-   . sm_rankmute <0|1> -- Set client rank mute (hide plugin messages)
-   . sm_rankmutetoggle -- Toggle client rank mute (hide plugin messages)
-
------------------------------------------------------------------------------
-*/
-
 #pragma semicolon 1
 #include <sourcemod>
 #include <clientprefs>
@@ -589,7 +382,8 @@ new Handle:cvar_SoundsEnabled = INVALID_HANDLE;
 new Handle:MeleeKillTimer[MAXPLAYERS + 1];
 new MeleeKillCounter[MAXPLAYERS + 1];
 new ClientPlayTime[MAXPLAYERS + 1];
-
+new CheckPlayerPoint[100];
+new Handle:AnnounceGameTime;
 // Plugin Info
 public Plugin:myinfo =
 {
@@ -609,6 +403,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("l4dstats_GetClientScore", Native_GetClientScore);
 	CreateNative("l4dstats_AdddClientScore", Native_AddClientScore);
 	CreateNative("l4dstats_GetClientPlayTime", Native_GetClientPlayTime);
+	CreateNative("l4dstats_IsTopPlayer", Native_IsTopPlayer);
 	
 	return APLRes_Success;
 }
@@ -653,6 +448,89 @@ public int Native_GetClientPlayTime(Handle plugin, int numParams)
 	return ClientPlayTime[client];
 }
 
+public int Native_IsTopPlayer(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	int ranklimit = GetNativeCell(2);
+	if (client < 1 || client > MaxClients)
+	{
+		return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+	}
+	if (!IsClientConnected(client))
+	{
+		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not connected", client);
+	}
+	if(IsFakeClient(client)){
+		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is A bot", client);
+	}
+	if(ranklimit<1 || ranklimit>100){
+		return ThrowNativeError(SP_ERROR_NATIVE, "rank limit value wrong");
+	}
+	/*
+	if(ranklimit == 0)
+		GetTopLimitPlayerScore(client,10);
+	else
+		GetTopLimitPlayerScore(client,ranklimit);
+	*/
+	//LogError("ClientPoints[client]: %d CheckPlayerPoint[ranklimit-1]: %d", ClientPoints[client], CheckPlayerPoint[ranklimit-1]);
+	
+	if(ClientPoints[client] >= CheckPlayerPoint[ranklimit-1] && CheckPlayerPoint[ranklimit-1]> 0)
+		return 1;
+	else
+		return 0;
+}
+
+// Find a player from Top 100 ranking Points.
+public GetTop100PlayerScore()
+{
+	decl String:query[512];
+	Format(query, sizeof(query), "SELECT (%s) as totalpoints FROM %splayers ORDER BY totalpoints DESC LIMIT 100", DB_PLAYERS_TOTALPOINTS, DbPrefix);
+	SQL_TQuery(db, GetTop100PlayersScore, query,0);
+}
+
+// Send the Top 10 player's info to the client.
+public GetTop100PlayersScore(Handle:owner, Handle:hndl, const String:error[], any:client)
+{
+	if (hndl == INVALID_HANDLE)
+	{
+		LogError("GetPlayerScore failed! Reason: %s", error);
+		return;
+	}
+	
+	int i=0;
+	while (SQL_FetchRow(hndl))
+	{
+		CheckPlayerPoint[i++] = SQL_FetchInt(hndl, 0);
+		//LogError("1、ClientPoints[client]: %d CheckPlayerPoint: %d", ClientPoints[client], CheckPlayerPoint);
+	}
+}
+/*
+// Find a player from Top 10 ranking.
+public GetTopLimitPlayerScore(client, rank)
+{
+	decl String:query[512];
+	Format(query, sizeof(query), "SELECT (%s) as totalpoints FROM %splayers ORDER BY totalpoints DESC LIMIT %i,1", DB_PLAYERS_TOTALPOINTS, DbPrefix, rank-1);
+	SQL_TQuery(db, GetPlayerScore, query, client);
+}
+
+// Send the Top 10 player's info to the client.
+public GetPlayerScore(Handle:owner, Handle:hndl, const String:error[], any:client)
+{
+	if (hndl == INVALID_HANDLE)
+	{
+		LogError("GetPlayerScore failed! Reason: %s", error);
+		return;
+	}
+
+	if (SQL_FetchRow(hndl))
+	{
+		CheckPlayerPoint = SQL_FetchInt(hndl, 0);
+		//LogError("1、ClientPoints[client]: %d CheckPlayerPoint: %d", ClientPoints[client], CheckPlayerPoint);
+	}
+}
+
+*/
+
 public int Native_AddClientScore(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
@@ -684,7 +562,7 @@ public OnPluginStart()
 		SetFailState("Why you no has gamedata?");
 	}
 	CommandsRegistered = false;
-
+	AnnounceGameTime = CreateGlobalForward("l4dstats_AnnounceGameTime", ET_Ignore,Param_Cell);
 	// Require Left 4 Dead (2)
 	decl String:game_name[64];
 	GetGameFolderName(game_name, sizeof(game_name));
@@ -1157,6 +1035,7 @@ public OnConfigsExecuted()
 	
 	// Read the settings etc from the database.
 	ReadDb();
+	GetTop100PlayerScore();
 }
 
 // Load our categories and menus
@@ -1513,6 +1392,9 @@ public Action:AnnounceConnect(Handle:timer, any:client)
 	}
 
 	AnnounceCounter[client]++;
+	Call_StartForward(AnnounceGameTime);//转发触发
+	Call_PushCell(client);//按顺序将参数push进forward传参列表里
+	Call_Finish();//转发结束
 
 	ShowMOTD(client);
 	StatsPrintToChat2(client, true, "输入 \x05rankmenu \x01来操作 \x04%s\x01!", PLUGIN_NAME);
@@ -1722,12 +1604,12 @@ bool:ConnectDB()
 			CloseHandle(db);
 			return false;
 		}
-		else if (!SQL_FastQuery(db, "SET NAMES 'utf8'"))
+		else if (!SQL_FastQuery(db, "SET NAMES 'utf8mb4'"))
 		{
 			if (SQL_GetError(db, Error, sizeof(Error)))
-				LogError("Failed to update encoding to UTF8: %s", Error);
+				LogError("Failed to update encoding to utf8mb4: %s", Error);
 			else
-				LogError("Failed to update encoding to UTF8: unknown");
+				LogError("Failed to update encoding to utf8mb4: unknown");
 			CloseHandle(db);
 		}
 
@@ -2694,10 +2576,12 @@ stock bool IsPlayer(int client)
 
 public UpdatePlayer(client)
 {
-	if (!IsClientConnected(client) && !IsPlayer(client))
+	if (!IsClientConnected(client) && !IsClientInGame(client))
 	{
 		return;
 	}
+	if(!IsPlayer(client))
+		return;
 
 	decl String:SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
@@ -5855,8 +5739,9 @@ public Action:event_RevivePlayer(Handle:event, const String:name[], bool:dontBro
 	new Victim = GetClientOfUserId(GetEventInt(event, "subject"));
 	new Mode = GetConVarInt(cvar_AnnounceMode);
 
-	if (IsClientBot(Savior) || IsClientBot(Victim))
+	if (IsClientBot(Savior) || IsClientBot(Victim) || Savior == Victim)
 		return;
+		
 
 	decl String:SaviorName[MAX_LINE_WIDTH];
 	GetClientName(Savior, SaviorName, sizeof(SaviorName));
@@ -7192,15 +7077,15 @@ public GetClientRankRankChange(Handle:owner, Handle:hndl, const String:error[], 
 
 		decl String:Label[16];
 		if (RankChange > 0)
-			Format(Label, sizeof(Label), "GAINED");
+			Format(Label, sizeof(Label), "上升");
 		else
 		{
 			RankChange *= -1;
-			Format(Label, sizeof(Label), "DROPPED");
+			Format(Label, sizeof(Label), "下降");
 		}
 
 		if (!IsClientBot(client) && IsClientConnected(client) && IsClientInGame(client))
-			StatsPrintToChat(client, "你的排名变化了 \x04%i 名\x01! \x05(Rank: %i)", RankChange,  RankChangeLastRank[client]);
+			StatsPrintToChat(client, "你的排名%s了 \x04%i 名\x01! \x05(Rank: %i)", Label, RankChange,  RankChangeLastRank[client]);
 	}
 }
 
@@ -8594,6 +8479,8 @@ public DisplaySettingsPanel(client)
 	SendPanelToClient(panel, client, SettingsPanelHandler, 30);
 	CloseHandle(panel);
 }
+
+
 
 // Send the TOP10 panel to the client's display.
 public DisplayTop10(Handle:owner, Handle:hndl, const String:error[], any:client)

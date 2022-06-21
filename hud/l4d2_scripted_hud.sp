@@ -1372,7 +1372,7 @@ void GetHUD2_Text(char[] output, int size)
 	int boss_proximity = RoundToNearest(GetBossProximity() * 100.0);
 	int g_fWitchPercent = RoundToNearest(GetWitchFlow(0) * 100.0);
 	int g_fTankPercent = RoundToNearest(GetTankFlow(0) * 100.0); 
-	FormatEx(output, size, "[电信服]当前进度显示: [%d]\nTank位置: [%d]，Witch位置: [%d]", boss_proximity, g_fTankPercent, g_fWitchPercent);
+	FormatEx(output, size, "当前位置: [%d] Tank: [%d] Witch: [%d]", boss_proximity, g_fTankPercent, g_fWitchPercent);
 }
 
 /****************************************************************************************************/

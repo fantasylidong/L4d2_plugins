@@ -18,16 +18,16 @@ public Plugin myinfo =
 	name 			= "Ai_Jockey增强",
 	author 			= "Breezy，High Cookie，Standalone，Newteee，cravenge，Harry，Sorallll，PaimonQwQ，夜羽真白",
 	description 	= "觉得Ai猴子太弱了？ Try this！",
-	version 		= "2022-4-27",
+	version 		= "2022/5/2",
 	url 			= "https://steamcommunity.com/id/saku_ra/"
 }
 
 // ConVars
-ConVar g_hBhopSpeed, g_hStartHopDistance, g_hJockeyStumbleRadius, g_hStaggerTime;
+ConVar g_hBhopSpeed, g_hStartHopDistance, g_hJockeyStumbleRadius;
 // Ints
 int g_iStartHopDistance, g_iState[MAXPLAYERS + 1][8], g_iJockeyStumbleRadius;
 // Float
-float g_fJockeyBhopSpeed;
+float g_fJockeyBhopSpeed, g_fShovedTime[MAXPLAYERS + 1] = {0.0};
 // Bools
 bool g_bHasBeenShoved[MAXPLAYERS + 1], g_bCanLeap[MAXPLAYERS + 1];
 
@@ -41,16 +41,15 @@ public void OnPluginStart()
 	g_hBhopSpeed = CreateConVar("ai_JockeyBhopSpeed", "80.0", "Jockey连跳的速度", FCVAR_NOTIFY, true, 0.0);
 	g_hStartHopDistance = CreateConVar("ai_JockeyStartHopDistance", "800", "Jockey距离生还者多少距离开始主动连跳", FCVAR_NOTIFY, true, 0.0);
 	g_hJockeyStumbleRadius = CreateConVar("ai_JockeyStumbleRadius", "50", "Jockey骑到人后会对多少范围内的生还者产生硬直效果", FCVAR_NOTIFY, true, 0.0);
-	g_hStaggerTime = FindConVar("z_jockey_stagger_speed");
 	// HookEvent
 	HookEvent("player_spawn", evt_PlayerSpawn, EventHookMode_Pre);
 	HookEvent("player_shoved", evt_PlayerShoved, EventHookMode_Pre);
+	HookEvent("player_jump", evt_PlayerJump, EventHookMode_Pre);
 	HookEvent("jockey_ride", evt_JockeyRide);
 	// AddChangeHook
 	g_hBhopSpeed.AddChangeHook(ConVarChanged_Cvars);
 	g_hStartHopDistance.AddChangeHook(ConVarChanged_Cvars);
 	g_hJockeyStumbleRadius.AddChangeHook(ConVarChanged_Cvars);
-	g_hStaggerTime.AddChangeHook(ConVarChanged_Cvars);
 	// GetCvars
 	GetCvars();
 }
@@ -157,20 +156,32 @@ public Action evt_PlayerShoved(Event event, const char[] name, bool dontBroadcas
 	int iShovedPlayer = GetClientOfUserId(event.GetInt("userid"));
 	if (IsAiJockey(iShovedPlayer))
 	{
+		g_bHasBeenShoved[iShovedPlayer] = true;
 		g_bCanLeap[iShovedPlayer] = false;
+		g_fShovedTime[iShovedPlayer] = GetGameTime();
 		int fLeapCooldown = GetConVarInt(FindConVar("z_jockey_leap_again_timer"));
 		CreateTimer(float(fLeapCooldown), Timer_LeapCoolDown, iShovedPlayer, TIMER_FLAG_NO_MAPCHANGE);
 	}
 	return Plugin_Continue;
 }
 
+public void evt_PlayerJump(Event event, const char[] name, bool dontBroadcast)
+{
+	int iJumpingPlayer = GetClientOfUserId(event.GetInt("userid"));
+	if (IsAiJockey(iJumpingPlayer))
+	{
+		g_bHasBeenShoved[iJumpingPlayer] = false;
+	}
+}
 
 public Action evt_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int iSpawnPlayer = GetClientOfUserId(event.GetInt("userid"));
 	if (IsAiJockey(iSpawnPlayer))
 	{
+		g_bHasBeenShoved[iSpawnPlayer] = false;
 		g_bCanLeap[iSpawnPlayer] = true;
+		g_fShovedTime[iSpawnPlayer] = 0.0;
 	}
 	return Plugin_Handled;
 }

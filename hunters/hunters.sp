@@ -97,7 +97,10 @@ public void evt_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if (IsAiTank(client)&&IsClientInGame(client) && IsFakeClient(client))
 	{
-		KickClient(client,"1vht模式不允许出现tank");
+		if(!L4D_IsMissionFinalMap())
+			KickClient(client,"1vht模式不允许出现tank");
+		else
+			ForcePlayerSuicide(client);
 	}
 }
 
@@ -1010,6 +1013,7 @@ void HardTeleMode(int client)
 						{
 							TeleportEntity(client, fSpawnPos, NULL_VECTOR, NULL_VECTOR);
 							SDKUnhook(client, SDKHook_PostThinkPost, SDK_UpdateThink);
+							return;
 						}
 					}
 				}
