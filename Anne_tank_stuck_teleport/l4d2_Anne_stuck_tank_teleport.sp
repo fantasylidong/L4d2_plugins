@@ -5,12 +5,14 @@
 #include <sdktools>
 #include <sdkhooks>
 #include <left4dhooks>
+#include "treeutil.sp"
+
 #define TEAM_SURVIVOR 2
 #define TEAM_INFECTED 3
 #define CVAR_FLAGS		FCVAR_NOTIFY
 #include <l4d2_saferoom_detect>
 
-#define PLUGIN_VERSION "1.7"
+#define PLUGIN_VERSION "1.8"
 ConVar 	g_hCvarEnable;
 ConVar 	g_hCvarStuckInterval;
 ConVar 	g_hCvarNonStuckRadius;
@@ -33,6 +35,9 @@ int 	g_iRushTimes[MAXPLAYERS+1];
 int		g_iTanksCount;
 /*
 	ChangeLog:
+	1.8
+		增加所有生还者都在tank进度前时不触发跑男惩罚
+		
 	1.7
 		生还者进度超过98%的也不会传送（防止传送到安全门内）这种情况改为用l4d2_saferoom_detect解决
 	
@@ -74,7 +79,7 @@ public void OnPluginStart()
 	g_hCvarStuckInterval = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_check_interval",			"3",		"Time intervals (in sec.) tank stuck should be checked", CVAR_FLAGS );
 	g_hCvarNonStuckRadius = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_non_stuck_radius",		"20",		"Maximum radius where tank is cosidered non-stucked when not moved during X (9) sec. (see l4d2_Anne_stuck_tank_teleport_check_interval ConVar)", CVAR_FLAGS );
 	g_hCvarRusherPunish = CreateConVar(		"l4d2_Anne_stuck_tank_teleport_rusher_punish",			"1",		"Punish the player who rush too far from the nearest tank by teleporting tank to him? (0 - No / 1 - Yes)", CVAR_FLAGS );
-	g_hCvarRusherDist = CreateConVar(		"l4d2_Anne_stuck_tank_teleport_rusher_dist",			"3000",		"Maximum distance to the nearest tank considered as rusher", CVAR_FLAGS );
+	g_hCvarRusherDist = CreateConVar(		"l4d2_Anne_stuck_tank_teleport_rusher_dist",			"2800",		"Maximum distance to the nearest tank considered as rusher", CVAR_FLAGS );
 	g_hCvarRusherCheckTimes = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_rusher_check_times",		"6",		"Number of checks before finally considering player as rusher", CVAR_FLAGS );
 	g_hCvarRusherCheckInterv = CreateConVar("l4d2_Anne_stuck_tank_teleport_rusher_check_interval",	"3",		"Interval (in sec.) between each check for rusher", CVAR_FLAGS );	
 	g_hCvarRusherMinPlayers = CreateConVar(	"l4d_TankAntiStuck_rusher_minplayers",		"2",		"Minimum living players allowed for 'Rusher player' rule to work", CVAR_FLAGS );
@@ -107,17 +112,7 @@ void BeginTankTracing(int client)
 	//3s种检查一次tank的移动距离
 	CreateTimer(g_hCvarStuckInterval.FloatValue, Timer_CheckPos, GetClientUserId(client), TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
-bool IsValidSurvivor(int client)
-{
-	if (client > 0 && client <= MaxClients && IsClientInGame(client) && GetClientTeam(client) == TEAM_SURVIVOR)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
+
 bool TraceFilter(int entity, int contentsMask)
 {
 	if (entity || entity <= MaxClients || !IsValidEntity(entity))
@@ -229,13 +224,6 @@ bool IsOnValidMesh(float fReferencePos[3])
 		return false;
 	}
 }
-// 向量复制
-stock void CopyVectors(float origin[3], float result[3])
-{
-	result[0] = origin[0];
-	result[1] = origin[1];
-	result[2] = origin[2];
-}
 bool IsPlayerStuck(float refpos[3], int client)
 {
 	bool stuck = false;
@@ -328,12 +316,19 @@ public void TeleportTank(int client){
 					{
 						GetClientEyePosition(index, fSurvivorPos);
 						fSurvivorPos[2] -= 60.0;
-						if (L4D2_VScriptWrapper_NavAreaBuildPath(fSpawnPos, fSurvivorPos, 1200.0, false, false, TEAM_INFECTED, false))
+						Address p1 = L4D_GetNearestNavArea(fSpawnPos, 120, false, false, false, 3);
+						Address p2 = L4D_GetNearestNavArea(fSurvivorPos, 120, false, false, false, 3);
+						if (L4D2_NavAreaBuildPath(p1, p2, 1200.0, 3, false))
 						{
 							//把tank传送高度稍微提高防止卡住
-							fSpawnPos[2] += 10.0;
+							fSpawnPos[2] += 20.0;
 							TeleportEntity(client, fSpawnPos, NULL_VECTOR, NULL_VECTOR);
-							PrintToChatAll("\x03Tank被卡住了开始传送.");
+							int newtarget = GetClosetMobileSurvivor(client);
+							if (IsValidSurvivor(newtarget))
+							{
+								Logic_RunScript(COMMANDABOT_ATTACK, GetClientUserId(client), GetClientUserId(newtarget));
+							}
+							PrintHintTextToAll("请注意，Tank被卡住了开始传送到生还者附近.");
 							return;
 						}
 					}
@@ -456,7 +451,7 @@ public Action Timer_CheckRusher(Handle timer) {
 					//增加限制条件，tank的路程图不能在生还者前面，否则会碰到刷tank后生还者距离过远，直接传送到生还者附近
 					if (distance > g_hCvarRusherDist.FloatValue) {
 						
-						if (g_iRushTimes[i] >= g_hCvarRusherCheckTimes.IntValue && L4D2Direct_GetFlowDistance(tank)<L4D2Direct_GetFlowDistance(i) && !L4D_IsMissionFinalMap() && !SAFEDETECT_IsEntityInEndSaferoom(i)) {
+						if (g_iRushTimes[i] >= g_hCvarRusherCheckTimes.IntValue) {
 							//PrintToConsoleAll("tank与\x03%N的距离为：%f，坦克的路程为:%f，生还者的路程为:%f",distance,L4D2Direct_GetFlowDistance(tank),L4D2Direct_GetFlowDistance(i));
 							TeleportToSurvivorInPlace(tank, i);
 							PrintToChatAll("\x03%N \x04 因为当求生跑男，Tank开始传送惩罚.", i);
@@ -464,7 +459,8 @@ public Action Timer_CheckRusher(Handle timer) {
 							g_iRushTimes[i] = 0;
 						}
 						else {
-							g_iRushTimes[i]++;
+							if(L4D2Direct_GetFlowDistance(tank)!= 0.0 && L4D2Direct_GetFlowDistance(i)!=0.0&& L4D2Direct_GetFlowDistance(tank)<L4D2Direct_GetFlowDistance(i) && !L4D_IsMissionFinalMap() && !SAFEDETECT_IsEntityInEndSaferoom(i) && !IsAllSurAheadTankFlow(tank))
+								g_iRushTimes[i]++;
 						}
 					}
 					else {
@@ -475,6 +471,18 @@ public Action Timer_CheckRusher(Handle timer) {
 		}
 	}
 	return Plugin_Continue;
+}
+
+bool IsAllSurAheadTankFlow(int tank){
+	//bool flag = false;
+	for(int i = 1; i <= MaxClients; i++){
+		if(IsValidSurvivor(i)){
+			//没有获取到任何一方的flow时，返回false
+			if(L4D2Direct_GetFlowDistance(i) < L4D2Direct_GetFlowDistance(tank) || L4D2Direct_GetFlowDistance(i) == 0.0 || L4D2Direct_GetFlowDistance(tank) == 0.0)
+				return false;				
+		}
+	}
+	return true;
 }
 
 /*

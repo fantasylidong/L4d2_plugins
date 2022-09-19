@@ -70,6 +70,8 @@ public Action OnPlayerRunCmd(int jockey, int &buttons, int &impulse, float vel[3
 {
 	if (IsAiJockey(jockey))
 	{
+		if(GetEntPropEnt(jockey, Prop_Send, "m_jockeyVictim") > 0)
+			return Plugin_Continue;
 		float fSpeed[3] = {0.0}, fCurrentSpeed, fJockeyPos[3] = {0.0};
 		GetEntPropVector(jockey, Prop_Data, "m_vecVelocity", fSpeed);
 		fCurrentSpeed = SquareRoot(Pow(fSpeed[0], 2.0) + Pow(fSpeed[1], 2.0));
@@ -96,7 +98,7 @@ public Action OnPlayerRunCmd(int jockey, int &buttons, int &impulse, float vel[3
 							if (angles[2] == 0.0 && bIsWatchingJockey)
 							{
 								angles = angles;
-								angles[0] = GetRandomFloat(-50.0, -10.0);
+								angles[0] = GetRandomFloat(-30.0, -10.0);
 								TeleportEntity(jockey, NULL_VECTOR, angles, NULL_VECTOR);
 							}
 							buttons |= IN_ATTACK;

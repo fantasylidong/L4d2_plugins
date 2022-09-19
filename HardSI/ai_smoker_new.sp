@@ -12,7 +12,6 @@
 #define TEAM_INFECTED 3
 #define SMOKER_MELEE_RANGE 300
 #define SMOKER_ATTACK_COORDINATE 5.0
-#define SMOKER_TONGUE_DELAY 1.0
 enum AimType
 {
 	AimEye,
@@ -30,32 +29,58 @@ public Plugin myinfo =
 }
 
 // ConVars
-ConVar g_hTongueRange, g_hTargetChoose, g_hMeleeAvoid, g_hLeftDistance, g_hDistancePercent, g_hSmokerBhop, g_hSmokerBhopSpeed,g_hSmokerInterval,g_hCvarTongueDelay;
+ConVar g_hTongueRange, g_hTargetChoose, g_hMeleeAvoid, g_hLeftDistance, g_hDistancePercent, g_hSmokerBhop, g_hSmokerBhopSpeed, g_hSmokerInterval, g_hSmokerTongueMiss;
 // Ints
 int g_iTongueRange, g_iTargetChoose,  g_iValidSurvivor = 0;
 // Bools
 bool g_bMeleeAvoid, bIsBehind[MAXPLAYERS + 1], g_bSmokerBhop, bCanSmoker[MAXPLAYERS + 1];
 // Floats
-float g_fMapFlowDistance, g_fLeftDistance, g_fDistancePercent, g_fSmokerBhopSpeed, g_fSmokerInterval;
+float g_fMapFlowDistance, g_fLeftDistance, g_fDistancePercent, g_fSmokerBhopSpeed, g_fSmokerInterval, g_fSmokerTongueMiss;
+
+//Startup
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+	//API
+	RegPluginLibrary("ai_smoker_new");
+	
+	CreateNative("IsSmokerCanUseAbility", Native_GetSmokerStatus);
+	
+	return APLRes_Success;
+}
+
+//API
+public int Native_GetSmokerStatus(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	
+	if (client < 1 || client > MaxClients)
+	{
+		return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+	}
+	if (!IsClientConnected(client))
+	{
+		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not connected", client);
+	}
+	
+	return bCanSmoker[client];
+}
 
 public void OnPluginStart()
 {
 	g_hSmokerBhop = CreateConVar("ai_SmokerBhop", "1", "是否开启Smoker连跳", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_hSmokerBhopSpeed = CreateConVar("ai_SmokerBhopSpeed", "80.0", "Smoker连跳的速度", FCVAR_NOTIFY, true, 0.0);
 	g_hTargetChoose = CreateConVar("ai_SmokerTarget", "1", "Smoker优先选择的目标：1=距离最近，2=手持喷子的人（无则最近），3=落单者或超前者（无则最近），4=正在换弹的人（无则最近）", FCVAR_NOTIFY, true, 1.0, true, 4.0);
-	g_hMeleeAvoid = CreateConVar("ai_SmokerMeleeAvoid", "1", "Smoker的目标如果手持近战则切换目标", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_hMeleeAvoid = CreateConVar("ai_SmokerMeleeAvoid", "0", "Smoker的目标如果手持近战则切换目标", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_hSmokerInterval = FindConVar("tongue_hit_delay");
+	g_hSmokerTongueMiss = FindConVar("tongue_miss_delay");
 	g_hLeftDistance = CreateConVar("ai_SmokerLeftBehindDistance", "7.0", "玩家距离团队多远判定为落后或超前", FCVAR_NOTIFY, true, 0.0);
 	g_hDistancePercent = CreateConVar("ai_SmokerDistantPercent", "0.80", "舌头如果处在这个系数 * 舌头长度的距离范围内，则会立刻拉人", FCVAR_NOTIFY, true, 0.0);
 	g_hTongueRange = FindConVar("tongue_range");
-	g_hCvarTongueDelay = FindConVar("smoker_tongue_delay"); 
-	SetConVarFloat(g_hCvarTongueDelay, SMOKER_TONGUE_DELAY);
 	// HookEvent
 	HookEvent("round_start", evtRoundStart);
-	HookEvent("player_spawn", evt_PlayerSpawn);
+	//HookEvent("player_spawn", evt_PlayerSpawn);
 
 	// AddChangeHooks
-	g_hCvarTongueDelay.AddChangeHook(ConVarChanged_Cvars);
 	g_hSmokerInterval.AddChangeHook(ConVarChanged_Cvars);
 	g_hSmokerBhop.AddChangeHook(ConVarChanged_Cvars);
 	g_hSmokerBhopSpeed.AddChangeHook(ConVarChanged_Cvars);
@@ -64,19 +89,46 @@ public void OnPluginStart()
 	g_hTongueRange.AddChangeHook(ConVarChanged_Cvars);
 	g_hLeftDistance.AddChangeHook(ConVarChanged_Cvars);
 	g_hDistancePercent.AddChangeHook(ConVarChanged_Cvars);
+	g_hSmokerTongueMiss.AddChangeHook(ConVarChanged_Cvars);
 	// GetCvars
 	GetCvars();
 }
-
+/*
 // ***** 事件 *****
 public void evt_PlayerSpawn(Event event, const char[] name, bool dontBroadCast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if (IsAiSmoker(client))
-	{
-		bCanSmoker[client] = true;
+	{	
+		//int flags = GetEntityFlags(client);
+		//if(!(flags & FL_ONGROUND) && GetConVarInt(g_hTongueRange) == 750)
+		//if(!(flags & FL_ONGROUND))
+		//{
+		SetConVarInt(g_hTongueRange,9999);
+		CreateTimer(0.3,ResetTougueRange);
+		BlockSmokerTongue(client);
+		//}
+
 	}
 }
+
+// 阻止舌头拉
+void BlockSmokerTongue(int client)
+{
+	int ability = GetEntPropEnt(client, Prop_Send, "m_customAbility");
+	if (IsValidEntity(ability) && bCanSmoker[client])
+	{
+			SetEntPropFloat(ability, Prop_Send, "m_timestamp", GetGameTime() + 0.3);
+	}
+}
+
+
+public Action ResetTougueRange(Handle timer,int client) 
+{
+	bCanSmoker[client] = true;
+	SetConVarInt(g_hTongueRange,750);
+}
+*/
 
 void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
 {
@@ -85,8 +137,6 @@ void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newV
 
 void GetCvars()
 {
-	//阻止重启后值被重载
-	SetConVarFloat(g_hCvarTongueDelay, SMOKER_TONGUE_DELAY);
 	g_bSmokerBhop = g_hSmokerBhop.BoolValue;
 	g_fSmokerInterval = g_hSmokerInterval.FloatValue;
 	g_fSmokerBhopSpeed = g_hSmokerBhopSpeed.FloatValue;
@@ -95,6 +145,7 @@ void GetCvars()
 	g_bMeleeAvoid = g_hMeleeAvoid.BoolValue;
 	g_fLeftDistance = g_hLeftDistance.FloatValue;
 	g_fDistancePercent = g_hDistancePercent.FloatValue;
+	g_fSmokerTongueMiss = g_hSmokerTongueMiss.FloatValue;
 }
 
 public Action evtRoundStart(Event event, const char[] name, bool dontBroadcast)
@@ -114,10 +165,14 @@ public Action CoolDown(Handle timer,int client){
 	bCanSmoker[client]=true;
 }
 
+
+
 public Action OnPlayerRunCmd(int smoker, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
 	if (IsAiSmoker(smoker))
 	{
+		if(GetEntPropEnt(smoker, Prop_Send, "m_tongueVictim") > 0)
+			return Plugin_Continue;
 		int iTarget = GetClientAimTarget(smoker, true);
 		float fSmokerPos[3] = {0.0}, fTargetPos[3] = {0.0}, fTargetAngles[3] = {0.0};
 		GetClientAbsOrigin(smoker, fSmokerPos);
@@ -171,7 +226,7 @@ public Action OnPlayerRunCmd(int smoker, int &buttons, int &impulse, float vel[3
 					buttons |= IN_ATTACK2;
 					buttons |= IN_ATTACK;
 					bCanSmoker[smoker]=false;
-					CreateTimer(SMOKER_TONGUE_DELAY,CoolDown,smoker);
+					CreateTimer(g_fSmokerTongueMiss, CoolDown, smoker);
 					return Plugin_Changed;
 				}
 			}
@@ -181,7 +236,7 @@ public Action OnPlayerRunCmd(int smoker, int &buttons, int &impulse, float vel[3
 		if (IsSurvivor(iVictim))
 		{
 			bCanSmoker[smoker]=false;
-			CreateTimer(g_fSmokerInterval,CoolDown,smoker);
+			CreateTimer(g_fSmokerInterval, CoolDown, smoker);
 		}
 	}
 	return Plugin_Continue;
@@ -191,6 +246,8 @@ public Action L4D2_OnChooseVictim(int specialInfected, int &curTarget)
 {
 	if (IsAiSmoker(specialInfected))
 	{
+		if(GetEntPropEnt(specialInfected, Prop_Send, "m_tongueVictim") > 0)
+			return Plugin_Continue;
 		// 不拉被控和倒地的人
 		if (IsSurvivor(curTarget))
 		{

@@ -31,6 +31,7 @@ updater/autoupdate 自动更新最新anne特感增强插件
 hud 路程hud显示
 
 ## 服务器运营插件
+RestrictGamemode 锁定服务器支持的模式（有黑名单和白名单模式可选，十分方便），当匹配到不支持的模式时，可以重启服务器或者更改为默认配置服务器模式
 
 hextags 称号插件(分数来自l4dstats)
 

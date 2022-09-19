@@ -265,10 +265,10 @@ public OnClientAuthorized(client, const String:steamId[])
 	if (QueryCachedData(SteamIdToInt(steamId), player[client].totalplaytime, player[client].last2weektime, player[client].isGroupMember, player[client].servertime, player[client].realplaytime))
 	{
 
-		LogError("VeteransOnly: New client, playtime loaded from cache for SteamId %s", steamId);
+		//LogError("VeteransOnly: New client, playtime loaded from cache for SteamId %s", steamId);
 		CheckIfUserQualified(client);
 	}else {
-		LogError("VeteransOnly: New client, requesting playtime for SteamId %s", steamId);
+		//LogError("VeteransOnly: New client, requesting playtime for SteamId %s", steamId);
 		RequestUserInfo(client);
 	}
 }
@@ -516,7 +516,7 @@ public Action CachePlayer(Handle hTimer, any client){
 	char steamId[64];
 	GetClientAuthId(client, AuthId_Steam2, steamId, sizeof(steamId));
 	CacheUserData(SteamIdToInt(steamId), player[client].totalplaytime, player[client].last2weektime, player[client].isGroupMember, player[client].servertime, player[client].realplaytime);
-	LogError("%N: 总时长：%i 最近2周：%i 组成员：%i 服务器时长：%i 真实时长：%i(时长单位min)", client, player[client].totalplaytime, player[client].last2weektime, player[client].isGroupMember, player[client].servertime, player[client].realplaytime);
+	//LogError("%N: 总时长：%i 最近2周：%i 组成员：%i 服务器时长：%i 真实时长：%i(时长单位min)", client, player[client].totalplaytime, player[client].last2weektime, player[client].isGroupMember, player[client].servertime, player[client].realplaytime);
 	return Plugin_Continue;
 }
 

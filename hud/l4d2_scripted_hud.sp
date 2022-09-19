@@ -52,6 +52,11 @@ public Plugin myinfo =
 #include <sdkhooks>
 #include <basecomm>
 #include <left4dhooks>
+
+//#define REQUIRE_PLUGIN
+#undef REQUIRE_PLUGIN
+#include <witch_and_tankifier>
+
 // ====================================================================================================
 // Pragmas
 // ====================================================================================================
@@ -440,7 +445,7 @@ public void OnPluginStart()
     g_hCvar_UpdateInterval   = CreateConVar("l4d2_scripted_hud_update_interval", "0.1", "Interval in seconds to update the HUD.", CVAR_FLAGS, true, 0.1);
     g_hCvar_HUD1_Text        = CreateConVar("l4d2_scripted_hud_hud1_text", "", "The text you want to display in the HUD.\nNote: When cvar is empty \"\", plugin will use the predefined HUD text set in the code, check GetHUD*_Text functions.", CVAR_FLAGS);
     g_hCvar_HUD1_TextAlign   = CreateConVar("l4d2_scripted_hud_hud1_text_align", "1", "Aligns the text horizontally.\n1 = LEFT, 2 = CENTER, 3 = RIGHT.", CVAR_FLAGS, true, 1.0, true, 3.0);
-    g_hCvar_HUD1_BlinkTank   = CreateConVar("l4d2_scripted_hud_hud1_blink_tank", "0", "Makes the text blink from white to red while a tank is alive.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_HUD1_BlinkTank   = CreateConVar("l4d2_scripted_hud_hud1_blink_tank", "1", "Makes the text blink from white to red while a tank is alive.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_HUD1_Blink       = CreateConVar("l4d2_scripted_hud_hud1_blink", "0", "Makes the text blink from white to red.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_HUD1_Beep        = CreateConVar("l4d2_scripted_hud_hud1_beep", "0", "Makes the text play a beep sound while blinking.\n0 = OFF, 1 = ON. Note: the blink cvar must be \"1\" to play the beep sound.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_HUD1_Visible     = CreateConVar("l4d2_scripted_hud_hud1_visible", "1", "Makes the text visible.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -461,7 +466,7 @@ public void OnPluginStart()
     g_hCvar_HUD1_Height      = CreateConVar("l4d2_scripted_hud_hud1_height", "0.026", "Text area Height.", CVAR_FLAGS, true, 0.0, true, 2.0);
     g_hCvar_HUD2_Text        = CreateConVar("l4d2_scripted_hud_hud2_text", "", "The text you want to display in the HUD.\nNote: When cvar is empty \"\", plugin will use the predefined HUD text set in the code, check GetHUD*_Text functions.", CVAR_FLAGS);
     g_hCvar_HUD2_TextAlign   = CreateConVar("l4d2_scripted_hud_hud2_text_align", "1", "Aligns the text horizontally.\n1 = LEFT, 2 = CENTER, 3 = RIGHT.", CVAR_FLAGS, true, 1.0, true, 3.0);
-    g_hCvar_HUD2_BlinkTank   = CreateConVar("l4d2_scripted_hud_hud2_blink_tank", "1", "Makes the text blink from white to red while a tank is alive.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
+    g_hCvar_HUD2_BlinkTank   = CreateConVar("l4d2_scripted_hud_hud2_blink_tank", "0", "Makes the text blink from white to red while a tank is alive.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_HUD2_Blink       = CreateConVar("l4d2_scripted_hud_hud2_blink", "0", "Makes the text blink from white to red.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_HUD2_Beep        = CreateConVar("l4d2_scripted_hud_hud2_beep", "0", "Makes the text play a beep sound while blinking.\n0 = OFF, 1 = ON. Note: the blink cvar must be \"1\" to play the beep sound.", CVAR_FLAGS, true, 0.0, true, 1.0);
     g_hCvar_HUD2_Visible     = CreateConVar("l4d2_scripted_hud_hud2_visible", "1", "Makes the text visible.\n0 = OFF, 1 = ON.", CVAR_FLAGS, true, 0.0, true, 1.0);
@@ -619,7 +624,8 @@ public void OnPluginStart()
     // Admin Commands
     RegAdminCmd("sm_l4d2_scripted_hud_reload_data", CmdReloadData, ADMFLAG_ROOT, "Reload the HUD texts set in the data file.");
     RegAdminCmd("sm_print_cvars_l4d2_scripted_hud", CmdPrintCvars, ADMFLAG_ROOT, "Print the plugin related cvars and their respective values to the console.");
-	RegConsoleCmd("sm_spechudon", ShowSpecHud,"打开spechud");
+	RegConsoleCmd("sm_spechudon", ShowSpecHud, "打开spechud");
+	RegConsoleCmd("sm_spechudoff", offSpecHud, "打开spechud");
     CreateTimer(1.0, TimerAliveTankCheck, _, TIMER_REPEAT);
 }
 
@@ -1321,13 +1327,94 @@ void GetHUD_Texts()
 }
 
 /****************************************************************************************************/
+/*
+void GetHUD1_Text(char[] output, int size)
+{
+   	FormatEx(output, size, "\0");
+	int boss_proximity = RoundToNearest(GetBossProximity() * 100.0);
+	int g_fWitchPercent, g_fTankPercent;
+	if(GetWitchFlow(0))
+	{
+		g_fWitchPercent = RoundToNearest(GetWitchFlow(0) * 100.0);
+	}
+	else
+	{
+		g_fWitchPercent = 0;
+	}
+	if(GetTankFlow(0))
+	{
+		g_fTankPercent = RoundToNearest(GetTankFlow(0) * 100.0);
+	}
+	else
+	{
+		g_fTankPercent = 0;
+	}
+	if(g_fTankPercent)
+	{
+		if(g_fWitchPercent)
+		{
+			FormatEx(output, size, "当前: [%d] 坦克: [%d] 女巫: [%d]", boss_proximity, g_fTankPercent, g_fWitchPercent);
+		}
+		else
+		{
+			FormatEx(output, size, "当前: [%d] 坦克: [%d] 女巫: [Null]", boss_proximity, g_fTankPercent);
+		}
+	} 
+	else if(g_fWitchPercent)
+	{
+		FormatEx(output, size, "当前: [%d] 坦克: [Null] 女巫: [%d]", boss_proximity, g_fWitchPercent);
+	}
+	else
+	{
+		FormatEx(output, size, "当前: [%d] 坦克: [Null] 女巫: [Null]", boss_proximity);
+	}
+}
+*/
+
 
 void GetHUD1_Text(char[] output, int size)
 {
-    FormatEx(output, size, "\0");
-    char hostname[64];
-    FindConVar("hostname").GetString(hostname,sizeof(hostname));
-    FormatEx(output, size, "当前服务器: %s",  hostname);
+	bool IsStaticTank = IsStaticTankMap();
+	bool IsStaticWitch = IsStaticWitchMap();
+   	FormatEx(output, size, "\0");
+	int boss_proximity = RoundToNearest(GetBossProximity() * 100.0);
+	int g_fWitchPercent, g_fTankPercent;
+	//int max_dist = GetConVarInt(FindConVar("inf_SpawnDistanceMin"));
+	if(!IsStaticWitch)
+	{
+		g_fWitchPercent = RoundToNearest(GetWitchFlow(0) * 100.0);
+	}
+	else
+	{
+		g_fWitchPercent = 0;
+	}
+	if(!IsStaticTank)
+	{
+		g_fTankPercent = RoundToNearest(GetTankFlow(0) * 100.0);
+	}
+	else
+	{
+		g_fTankPercent = 0;
+	}
+	if(g_fTankPercent)
+	{
+		if(g_fWitchPercent)
+		{
+			FormatEx(output, size, "当前: [ %d ] 坦克: [ %d ] 女巫: [ %d ]", boss_proximity, g_fTankPercent, g_fWitchPercent);
+		}
+		else
+		{
+			FormatEx(output, size, "当前: [ %d ] 坦克: [ %d ] 女巫: [ Static ]", boss_proximity, g_fTankPercent);
+		}
+	} 
+	else if(g_fWitchPercent)
+	{
+		FormatEx(output, size, "当前: [ %d ] 坦克: [ Static ] 女巫: [ %d ]", boss_proximity, g_fWitchPercent);
+	}
+	else
+	{
+		FormatEx(output, size, "当前: [ %d ] 坦克: [ Static ] 女巫: [ Static ]", boss_proximity);
+	}
 }
 
 /****************************************************************************************************/
@@ -1346,6 +1433,10 @@ float GetMaxSurvivorCompletion()
 		if (IsClientInGame(i) && GetClientTeam(i) == 2) {
 			GetClientAbsOrigin(i, origin);
 			pNavArea = L4D2Direct_GetTerrorNavArea(origin);
+			if (pNavArea == Address_Null) 
+			{
+				pNavArea = L4D_GetNearestNavArea(origin, 300, false, false, false, 2);
+			}
 			if (pNavArea != Address_Null) {
 				tmp_flow = L4D2Direct_GetTerrorNavAreaFlow(pNavArea);
 				flow = (flow > tmp_flow) ? flow : tmp_flow;
@@ -1366,13 +1457,23 @@ stock float GetWitchFlow(int round)
 {
 	return L4D2Direct_GetVSWitchFlowPercent(round);
 }
+stock int GetPlayerNumber()
+{
+	int number = 0;
+	for(int i = 1; i <= MaxClients; i++)
+	{
+		if(IsClientConnected(i) && IsClientInGame(i) && !IsFakeClient(i))
+			number ++;
+	}
+	return number;
+}
 void GetHUD2_Text(char[] output, int size)
 {
 	FormatEx(output, size, "\0");
-	int boss_proximity = RoundToNearest(GetBossProximity() * 100.0);
-	int g_fWitchPercent = RoundToNearest(GetWitchFlow(0) * 100.0);
-	int g_fTankPercent = RoundToNearest(GetTankFlow(0) * 100.0); 
-	FormatEx(output, size, "当前位置: [%d] Tank: [%d] Witch: [%d]", boss_proximity, g_fTankPercent, g_fWitchPercent);
+	int PlayerLimit = GetConVarInt(FindConVar("sv_maxplayers"));
+    char hostname[64];
+    FindConVar("hostname").GetString(hostname,sizeof(hostname));   
+    FormatEx(output, size, "%s(%d/%d)",  hostname, GetPlayerNumber(), PlayerLimit);
 }
 
 /****************************************************************************************************/
@@ -1396,7 +1497,8 @@ bool HavePills(int client)
 void GetHUD3_Text(char[] output, int size)
 {
     FormatEx(output, size, "\0");
-
+	
+	int num = 0;
     for (int client = 1; client <= MaxClients; client++)
     {
         if (!IsClientInGame(client))
@@ -1404,6 +1506,9 @@ void GetHUD3_Text(char[] output, int size)
 
         if (GetClientTeam(client) != TEAM_SURVIVOR)
             continue;
+        num += 1;
+        if (num > 4)
+        	continue;
         char health[64];
         if (!IsPlayerAlive(client))
             FormatEx(health, sizeof(health), "☠");
@@ -1455,6 +1560,12 @@ public Action ShowSpecHud(int client, int args)
 {
     g_hCvar_HUD3_Visible.SetInt(1);
 }
+
+public Action offSpecHud(int client, int args)
+{
+    g_hCvar_HUD3_Visible.SetInt(0);
+}
+
 // ====================================================================================================
 // Admin Commands
 // ====================================================================================================
