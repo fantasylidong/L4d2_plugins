@@ -162,7 +162,7 @@ public int Native_IsClientReachLimit(Handle plugin, int numParams)
 	return player[client].IsReachLimit();
 }
 
-// 事件
+// 事件 event
 public void evt_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
@@ -252,6 +252,7 @@ public void evt_PlayerIncap(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
+//Check SI enable option
 public int CheckSIOption(int client){
     int iZombieClass = GetEntProp(client, Prop_Send, "m_zombieClass");
     switch (iZombieClass)
@@ -296,6 +297,7 @@ void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newV
 	GetCvars();
 }
 
+//Init Struct
 public void StructInit(){
 	for(int i = 0; i < MAXPLAYERS + 1; i++)
 	{
@@ -320,6 +322,7 @@ public Action L4D_OnFirstSurvivorLeftSafeArea(int client){
 	StructInit();
 }
 
+//SI choose another target, delete originalTarget limit
 public void deleteOrginalTarget(int specialInfected){
 	//将特感原来的目标的targetSum减1 original target minus 1
 	if(infected[specialInfected].target > 0 && player[infected[specialInfected].target].targetSum > 0){
@@ -330,6 +333,7 @@ public void deleteOrginalTarget(int specialInfected){
 	}
 }
 
+//Deal with SI change target
 //特感选择目标，对对应特感进行处理
 public Action L4D2_OnChooseVictim(int specialInfected, int &curTarget){
 	if(IsValidClient(specialInfected) && GetClientTeam(specialInfected) == 3 && g_bPluginEnable && infected[specialInfected].enable && infected[specialInfected].target != curTarget){
