@@ -175,7 +175,7 @@ void vHunter_OnPounce(int client) {
 	GetClientAbsOrigin(client, vPos);
 	if (g_fWallDetectionDistance > 0.0 && bHitWall(client, vPos)) {
 		iEnt = GetEntPropEnt(client, Prop_Send, "m_customAbility");
-		vAngleLunge(iEnt, GetRandomInt(0, 1) ? 45.0 : 315.0);
+		vAngleLunge(iEnt, Math_GetRandomInt(0, 1) ? 45.0 : 315.0);
 	}
 	else {	
 		if (bIsBeingWatched(client, g_fAimOffsetSensitivityHunter) && fNearestSurDistance(client, vPos) > g_fStraightPounceProximity) {
@@ -291,8 +291,8 @@ float fGaussianRNG(float fMean, float fStd) {
 	static float fW;
 
 	do {
-		fX1 = 2.0 * GetRandomFloat(0.0, 1.0) - 1.0;
-		fX2 = 2.0 * GetRandomFloat(0.0, 1.0) - 1.0;
+		fX1 = 2.0 * Math_GetRandomFloat(0.0, 1.0) - 1.0;
+		fX2 = 2.0 * Math_GetRandomFloat(0.0, 1.0) - 1.0;
 		fW = Pow(fX1, 2.0) + Pow(fX2, 2.0);
 	} while (fW >= 1.0);
 	
@@ -309,9 +309,45 @@ float fGaussianRNG(float fMean, float fStd) {
 	fZ1 = fY1 * fStd + fMean;
 	fZ2 = fY2 * fStd - fMean;
 
-	return GetRandomFloat(0.0, 1.0) < 0.5 ? fZ1 : fZ2;
+	return Math_GetRandomFloat(0.0, 1.0) < 0.5 ? fZ1 : fZ2;
 }
 
 bool bIsAliveSur(int client) {
 	return 0 < client <= MaxClients && IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client);
+}
+
+// https://github.com/bcserv/smlib/blob/transitional_syntax/scripting/include/smlib/math.inc
+/**
+ * Returns a random, uniform Integer number in the specified (inclusive) range.
+ * This is safe to use multiple times in a function.
+ * The seed is set automatically for each plugin.
+ * Rewritten by MatthiasVance, thanks.
+ *
+ * @param min			Min value used as lower border
+ * @param max			Max value used as upper border
+ * @return				Random Integer number between min and max
+ */
+int Math_GetRandomInt(int min, int max)
+{
+	int random = GetURandomInt();
+
+	if (random == 0) {
+		random++;
+	}
+
+	return RoundToCeil(float(random) / (float(2147483647) / float(max - min + 1))) + min - 1;
+}
+
+/**
+ * Returns a random, uniform Float number in the specified (inclusive) range.
+ * This is safe to use multiple times in a function.
+ * The seed is set automatically for each plugin.
+ *
+ * @param min			Min value used as lower border
+ * @param max			Max value used as upper border
+ * @return				Random Float number between min and max
+ */
+float Math_GetRandomFloat(float min, float max)
+{
+	return (GetURandomFloat() * (max  - min)) + min;
 }

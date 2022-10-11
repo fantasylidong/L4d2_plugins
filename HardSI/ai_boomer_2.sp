@@ -132,7 +132,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			}
 		}
 		// 靠近生还者，立即喷吐
-		if ((flags & FL_ONGROUND) && IsValidSurvivor(target) && has_sight && closet_survivor_dist <= RoundToNearest(0.8 * g_hVomitRange.FloatValue) && !in_bile_interval[client] && can_bile[client] && Player_IsVisible_To(target, client))
+		if ((flags & FL_ONGROUND) && IsValidSurvivor(target) && has_sight && closet_survivor_dist <= RoundToNearest(0.5 * g_hVomitRange.FloatValue) && !in_bile_interval[client] && can_bile[client] && Player_IsVisible_To(target, client))
 		{
 			buttons |= IN_FORWARD;
 			buttons |= IN_ATTACK;

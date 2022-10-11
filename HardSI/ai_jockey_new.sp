@@ -27,7 +27,7 @@ ConVar g_hBhopSpeed, g_hStartHopDistance, g_hJockeyStumbleRadius;
 // Ints
 int g_iStartHopDistance, g_iState[MAXPLAYERS + 1][8], g_iJockeyStumbleRadius;
 // Float
-float g_fJockeyBhopSpeed, g_fShovedTime[MAXPLAYERS + 1] = {0.0};
+float g_fJockeyBhopSpeed;
 // Bools
 bool g_bHasBeenShoved[MAXPLAYERS + 1], g_bCanLeap[MAXPLAYERS + 1];
 
@@ -79,7 +79,7 @@ public Action OnPlayerRunCmd(int jockey, int &buttons, int &impulse, float vel[3
 		// 获取jockey状态
 		int iFlags = GetEntityFlags(jockey), iTarget = GetClientAimTarget(jockey, true);
 		bool bHasSight = view_as<bool>(GetEntProp(jockey, Prop_Send, "m_hasVisibleThreats"));
-		if (IsSurvivor(iTarget) && IsPlayerAlive(iTarget) && bHasSight && !g_bHasBeenShoved[jockey])
+		if (IsSurvivor(iTarget) && IsPlayerAlive(iTarget) && bHasSight && !g_bHasBeenShoved[jockey] && g_bCanLeap[jockey])
 		{
 			// 其他操作
 			float fBuffer[3] = {0.0}, fTargetPos[3] = {0.0}, fDistance = NearestSurvivorDistance(jockey);
@@ -160,7 +160,6 @@ public Action evt_PlayerShoved(Event event, const char[] name, bool dontBroadcas
 	{
 		g_bHasBeenShoved[iShovedPlayer] = true;
 		g_bCanLeap[iShovedPlayer] = false;
-		g_fShovedTime[iShovedPlayer] = GetGameTime();
 		int fLeapCooldown = GetConVarInt(FindConVar("z_jockey_leap_again_timer"));
 		CreateTimer(float(fLeapCooldown), Timer_LeapCoolDown, iShovedPlayer, TIMER_FLAG_NO_MAPCHANGE);
 	}
@@ -183,13 +182,13 @@ public Action evt_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	{
 		g_bHasBeenShoved[iSpawnPlayer] = false;
 		g_bCanLeap[iSpawnPlayer] = true;
-		g_fShovedTime[iSpawnPlayer] = 0.0;
 	}
 	return Plugin_Handled;
 }
 
 public Action Timer_LeapCoolDown(Handle timer, int jockey)
 {
+	g_bHasBeenShoved[jockey] = false;
 	g_bCanLeap[jockey] = true;
 }
 

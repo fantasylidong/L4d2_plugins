@@ -96,7 +96,7 @@ public Action OnPlayerRunCmd(int boomer, int &buttons, int &impulse, float vel[3
 		bool bHasSight = view_as<bool>(GetEntProp(boomer, Prop_Send, "m_hasVisibleThreats"));
 		GetClientAbsOrigin(boomer, fBoomerPos);
 		// 靠近生还者，立即喷吐，不需要在地上，空中也能吐
-		if(bHasSight && fDistance <= g_fVomitRange - 160.0 && bCanVomit[boomer])
+		if(bHasSight && fDistance <= g_fVomitRange - 150.0 && bCanVomit[boomer])
 		{
 			buttons |= IN_FORWARD;
 			buttons |= IN_ATTACK;
