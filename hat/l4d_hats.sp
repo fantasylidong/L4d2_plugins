@@ -344,7 +344,7 @@ bool g_bCookieAuth[MAXPLAYERS+1];		// When cookies cached and client is authoriz
 Handle g_hTimerView[MAXPLAYERS+1];		// Thirdperson view when selecting hat
 Handle g_hTimerDetect;
 
-GlobalForward g_hForwardLoadSave, g_hSetHat;
+GlobalForward g_hForwardLoadSave;
 
 // ReadyUP plugin
 native bool ToggleReadyPanel(bool show, int target = 0);
@@ -374,8 +374,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		return APLRes_SilentFailure;
 	}
 
-	g_hForwardLoadSave = new GlobalForward("L4D_OnHatLoadSave", ET_Event, Param_Cell, Param_CellByRef, Param_Cell);
-	g_hSetHat = CreateGlobalForward("OnSetHat", ET_Ignore,Param_Cell,Param_Cell);
+	g_hForwardLoadSave = new GlobalForward("L4D_OnHatLoadSave", ET_Ignore, Param_Cell, Param_Cell);
+
 
 	MarkNativeAsOptional("ToggleReadyPanel");
 
@@ -869,20 +869,6 @@ public void OnClientCookiesCached(int client)
 			g_iType[client] = type;
 		}
 
-		// Forward
-		type = g_iType[client];
-		Action aResult = Plugin_Continue;
-		Call_StartForward(g_hForwardLoadSave);
-		Call_PushCell(client);
-		Call_PushCellRef(type);
-		Call_PushCell(true);
-		Call_Finish(aResult);
-
-		if( aResult == Plugin_Changed )
-		{
-			g_iType[client] = type;
-		}
-
 		// Can use cookies?
 		CookieAuthTest(client);
 	}
@@ -900,20 +886,6 @@ void CookieAuthTest(int client)
 			g_iType[client] = 0;
 			RemoveHat(client);
 			SetClientCookie(client, g_hCookie_Hat, "0");
-
-			// Forward
-			int type = g_iType[client];
-			Action aResult = Plugin_Continue;
-			Call_StartForward(g_hForwardLoadSave);
-			Call_PushCell(client);
-			Call_PushCellRef(type);
-			Call_PushCell(false);
-			Call_Finish(aResult);
-
-			if( aResult == Plugin_Changed )
-			{
-				g_iType[client] = type;
-			}
 		}
 	} else {
 		g_bCookieAuth[client] = true;
@@ -1488,13 +1460,13 @@ Action CmdHat(int client, int args)
 		return Plugin_Handled;
 	}
 
-	if( g_iCvarMenu != 0 && !l4dstats_IsTopPlayer(client,50) )
+	if( g_iCvarMenu != 0 && !l4dstats_IsTopPlayer(client,100) )
 	{
 		int flags = GetUserFlagBits(client);
 
 		if( !(flags & ADMFLAG_ROOT) && !(flags & g_iCvarMenu) )
 		{
-			CPrintToChat(client, "{GREEN}[HAT]{DEFAULT}你还没有权限使用帽子，请确认你是否为{ORANGE}管理员或积分排名榜前50名玩家");
+			CPrintToChat(client, "{GREEN}[HAT]{DEFAULT}你还没有权限使用帽子，请确认你是否为{ORANGE}管理员或积分排名榜前100名玩家");
 			return Plugin_Handled;
 		}
 	}
@@ -1525,21 +1497,13 @@ Action CmdHat(int client, int args)
 					{
 						SetClientCookie(client, g_hCookie_Hat, "-1");
 						g_iType[client] = -1;
-
-						// Forward
-						int type = g_iType[client];
-						Action aResult = Plugin_Continue;
-						Call_StartForward(g_hForwardLoadSave);
-						Call_PushCell(client);
-						Call_PushCellRef(type);
-						Call_PushCell(false);
-						Call_Finish(aResult);
-
-						if( aResult == Plugin_Changed )
-						{
-							g_iType[client] = type;
-						}
 					}
+					// Forward
+					int type = 0;
+					Call_StartForward(g_hForwardLoadSave);
+					Call_PushCell(client);
+					Call_PushCell(type);
+					Call_Finish();
 
 					CPrintToChat(client, "%T%T", "HAT_SYSTEM", client, "Hat_Off", client);
 				}
@@ -1639,21 +1603,14 @@ int HatMenuHandler(Menu menu, MenuAction action, int client, int index)
 					SetClientCookie(client, g_hCookie_Hat, "-1");
 					g_iType[client] = -1;
 
-					// Forward
-					int type = g_iType[client];
-					Action aResult = Plugin_Continue;
-					Call_StartForward(g_hForwardLoadSave);
-					Call_PushCell(client);
-					Call_PushCellRef(type);
-					Call_PushCell(false);
-					Call_Finish(aResult);
-
-					if( aResult == Plugin_Changed )
-					{
-						g_iType[client] = type;
-					}
 				}
 
+				// Forward
+				int type = 0;
+				Call_StartForward(g_hForwardLoadSave);
+				Call_PushCell(client);
+				Call_PushCell(type);
+				Call_Finish();
 				CPrintToChat(client, "%T%T", "HAT_SYSTEM", client, "Hat_Off", client);
 			}
 			else if( CreateHat(client, index - 1) )
@@ -2675,12 +2632,6 @@ bool CreateHat(int client, int index = -1)
 	if( g_bBlocked[client] || g_bHatOff[client] || IsValidEntRef(g_iHatIndex[client]) == true || HatsValidClient(client) == false )
 		return false;
 
-	Call_StartForward(g_hSetHat);//转发触发
-	Call_PushCell(client);//按顺序将参数push进forward传参列表里
-	Call_PushCell(index);//按顺序将参数push进forward传参列表里
-	Call_Finish();//转发结束
-
-	
 	if( index == -1 ) // Random hat
 	{
 		if( g_iCvarRand == 0 ) return false;
@@ -2738,26 +2689,18 @@ bool CreateHat(int client, int index = -1)
 	{
 		g_iType[client] = index + 1;
 	}
+	// Forward
+	int type = g_iType[client] - 1;
+	Call_StartForward(g_hForwardLoadSave);
+	Call_PushCell(client);
+	Call_PushCell(type);
+	Call_Finish();
 
 	if( g_iCvarSave && !IsFakeClient(client) )
 	{
 		char sNum[4];
 		IntToString(index + 1, sNum, sizeof(sNum));
 		SetClientCookie(client, g_hCookie_Hat, sNum);
-
-		// Forward
-		int type = g_iType[client];
-		Action aResult = Plugin_Continue;
-		Call_StartForward(g_hForwardLoadSave);
-		Call_PushCell(client);
-		Call_PushCellRef(type);
-		Call_PushCell(false);
-		Call_Finish(aResult);
-
-		if( aResult == Plugin_Changed )
-		{
-			g_iType[client] = type;
-		}
 
 		///////////////////////////////////////////
 		// Updated by pan0s

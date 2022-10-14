@@ -1,0 +1,3 @@
+功能：自动更新插件
+需要updater插件作为前置，autoupdater插件增加自动更新url给updater插件
+新增开服自动更新功能

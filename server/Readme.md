@@ -1,0 +1,4 @@
+功能：服务器功能插件
+duoteserver为neko的服务器功能插件：包括自杀，过关给50血，杀witch给15血，motd页面功能，具体看源码
+server为anne的服务器功能插件：类似上面
+server_name为anne插件的服务器名插件，支持不同的sv_tags增加不同的模式后缀

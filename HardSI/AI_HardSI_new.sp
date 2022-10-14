@@ -151,7 +151,10 @@ public void evt_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 
 public void L4D_TankClaw_DoSwing_Pre(int tank, int claw)
 {
-	SetConVarString(FindConVar("z_tank_throw_force"), "500");
+	if (IsInfectedBot(tank) && IsPlayerAlive(tank) && GetEntProp(tank, Prop_Send, "m_zombieClass") == ZC_TANK)
+	{
+		SetConVarString(FindConVar("z_tank_throw_force"), "500");
+	}
 }
 
 // 修正玩家速度
@@ -193,6 +196,10 @@ public void UpdateThink(int client)
 {
 	switch (GetEntProp(client, Prop_Send, "m_nSequence"))
 	{
+		case 15,16,17:
+		{
+			SetEntPropFloat(client, Prop_Send, "m_flPlaybackRate", 1.6);
+		}
 		case 18, 19, 20, 21, 22, 23:
 		{
 			SetEntPropFloat(client, Prop_Send, "m_flPlaybackRate", g_fPlayBackRate);
@@ -249,10 +256,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					{
 						react = OnJockeyRunCmd(client, buttons, vel, angles);
 					}
-					case ZC_CHARGER:
-					{
-						react = OnChargerRunCmd(client, buttons, vel, angles);
-					}
 				}
 			}
 
@@ -304,17 +307,6 @@ public Action OnJockeyRunCmd(int client, int &buttons, float vel[3], float angle
 			SetState(client, 0, IN_JUMP);
 		}
 		DelayStart(client, 0);
-		return Plugin_Changed;
-	}
-	return Plugin_Continue;
-}
-
-public Action OnChargerRunCmd(int client, int &buttons, float vel[3], float angles[3])
-{
-	if (!(buttons & IN_ATTACK) && GetEntityMoveType(client) != MOVETYPE_LADDER && (GetEntityFlags(client) & FL_ONGROUND) && DelayExpired(client, 0, CHARGERMELEEDELAY) && NearestSurvivorDistance(client) < CHARGERMELEERANGE)
-	{
-		DelayStart(client, 0);
-		buttons |= IN_ATTACK2;
 		return Plugin_Changed;
 	}
 	return Plugin_Continue;
@@ -803,7 +795,7 @@ float NearestSurvivorDistancetank(int client, int SpecificSur = -1)
 				TargetSur = newtarget;
 			}
 		}
-		if (TargetSur > 0 && HasEntProp(TargetSur, Prop_Send, "m_vecOrigin"))
+		if (IsValidSurvivor(TargetSur) && HasEntProp(TargetSur, Prop_Send, "m_vecOrigin"))
 		{
 			GetEntPropVector(TargetSur, Prop_Send, "m_vecOrigin", TargetSurPos);
 			return GetVectorDistance(selfpos, TargetSurPos);
@@ -830,7 +822,7 @@ float NearestSurvivorDistance(int client, int SpecificSur = -1)
 				TargetSur = newtarget;
 			}
 		}
-		if (TargetSur > 0 && HasEntProp(TargetSur, Prop_Send, "m_vecOrigin"))
+		if (IsValidSurvivor(TargetSur) && HasEntProp(TargetSur, Prop_Send, "m_vecOrigin"))
 		{
 			GetEntPropVector(TargetSur, Prop_Send, "m_vecOrigin", TargetSurPos);
 			return GetVectorDistance(selfpos, TargetSurPos);

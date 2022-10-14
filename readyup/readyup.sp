@@ -294,6 +294,7 @@ void FindCasterSystem()
 
 
 
+
 // ========================
 //  ConVar Change
 // ========================
@@ -342,6 +343,13 @@ public void GameInstructorDraw_Event(Event event, const char[] name, bool dontBr
 	CreateTimer(0.1, Timer_RestartCountdowns, false, TIMER_FLAG_NO_MAPCHANGE);
 }
 
+public bool PlayerTeam(int team){
+	if(team==2 || team==3)
+		return true;
+	else
+		return false;
+}
+
 public void PlayerTeam_Event(Event event, const char[] name, bool dontBroadcast)
 {
 	int userid = event.GetInt("userid");
@@ -352,13 +360,36 @@ public void PlayerTeam_Event(Event event, const char[] name, bool dontBroadcast)
 	int team = event.GetInt("team");
 	int oldteam = event.GetInt("oldteam");
 	
-	isPlayerReady[client] = false;
+	/*
 	//切换队伍
-	if(isTeamReadyMode && IsClientConnected(client) && IsPlayer(client)){
-		UnReadyByTeam(oldteam);
-		if(team==2 || team == 3)
+	if(isTeamReadyMode && IsClientConnected(client) && PlayerTeam(team)){
+		isPlayerReady[client] = false;
+		if((team==2 || team == 3) && oldteam)
 			UnReadyByTeam(team);
-		CancelFullReady(client,teamShuffle);
+		if(inLiveCountdown && !isForceStart)
+			CancelFullReady(client,teamShuffle);
+	}
+	*/
+	
+	if(isTeamReadyMode && IsClientConnected(client) && IsClientInGame(client))
+	{
+		if(PlayerTeam(team))
+		{
+			if(IsReadyTeam(client))
+			{
+				Ready_Cmd(client,0);
+				if (!inAutoStart && inReadyUp && CheckFullReady() && !inLiveCountdown)
+					InitiateLiveCountdown();
+			}
+			else
+				isPlayerReady[client] = false;
+			return;
+		}	
+		else{
+			return;
+		}
+	}else{
+		isPlayerReady[client] = false;
 	}
 	SetEngineTime(client);
 	
@@ -597,8 +628,9 @@ public Action Vote_Callback(int client, const char[] command, int argc)
 }
 public void UnReadyByTeam(int team){
 	for(int i=1; i<= MaxClients ; i++){
-		if(IsClientConnected(i) && !IsFakeClient(i) && IsPlayer(i) && GetClientTeam(i)== team){
+		if(IsClientConnected(i) && IsClientInGame(i) && !IsFakeClient(i) && IsPlayer(i) && GetClientTeam(i)== team){
 			isPlayerReady[i] = false;
+			//CancelFullReady(i,teamShuffle);
 		}		
 	}
 }
@@ -606,11 +638,11 @@ public void UnReadyByTeam(int team){
 public void ReadyTeam(int client){
 	int team=GetClientTeam(client);
 	for(int i=1; i<= MaxClients ; i++){
-		if(IsClientConnected(i) && !IsFakeClient(i) && IsPlayer(i) && GetClientTeam(i)==team){
+		if(IsClientConnected(i) && IsClientInGame(i) && !IsFakeClient(i) && IsPlayer(i) && GetClientTeam(i)==team){
 			//PrintToChatAll("%N已准备",i);
-			isPlayerReady[i] = true;
-			if (l4d_ready_secret.BoolValue)
+			if (l4d_ready_secret.BoolValue && !isPlayerReady[i])
 				DoSecrets(client);	
+			isPlayerReady[i] = true;			
 		}
 		
 	}
@@ -620,11 +652,21 @@ public void ReadyTeam(int client){
 public void UnReadyTeam(int client){
 	int team=GetClientTeam(client);
 	for(int i=1; i<= MaxClients ; i++){
-		if(IsClientConnected(i) && !IsFakeClient(i) && IsPlayer(i) && GetClientTeam(i)==team){
+		if(IsClientConnected(i) && IsClientInGame(i) && !IsFakeClient(i) && IsPlayer(i) && GetClientTeam(i)==team){
 			isPlayerReady[i] = false;
 		}
 		
 	}
+}
+
+public bool IsReadyTeam(int team){
+	for(int i=1; i<= MaxClients ; i++){
+		if(IsClientConnected(i) && IsClientInGame(i) && !IsFakeClient(i) && IsPlayer(i) && GetClientTeam(i)==team){
+			if(isPlayerReady[i])
+				return true;
+		}	
+	}
+	return false;
 }
 
 // ========================
@@ -1060,9 +1102,10 @@ void UpdatePanel()
 			menuPanel.DrawText(nameBuf);
 		}
 		menuPanel.DrawText(infectedBuffer);
-		menuPanel.DrawText(" ");
 	}
 	
+	if(isTeamReadyMode && specCount)
+		menuPanel.DrawText(" ");
 	if (specCount && textCount) menuPanel.DrawText(" ");
 
 	if (casterSystemAvailable)
@@ -1390,7 +1433,16 @@ void CancelFullReady(int client, disruptType type)
 	if (readyCountdownTimer != null)
 	{
 		SetTeamFrozen(L4D2Team_Survivor, GetConVarBool(l4d_ready_survivor_freeze));
-		if (type == teamShuffle) SetClientFrozen(client, false);
+		if (type == teamShuffle) {
+			if(isTeamReadyMode)
+			{
+				for(int i = 1; i <= MaxClients; i++)
+					if(IsClientConnected(i) && IsClientInGame(i) && IsPlayer(i))
+						SetClientFrozen(i, false);
+			}
+			else
+				SetClientFrozen(client, false);
+		}
 		inLiveCountdown = false;
 		KillTimer(readyCountdownTimer);
 		readyCountdownTimer = null;

@@ -1,0 +1,4 @@
+Hud插件
+Anne服显示witch和tank位置
+支持boss_percent的Static地图的显示
+需要left4dhooks 2.17版本以上，其他版本可能有问题

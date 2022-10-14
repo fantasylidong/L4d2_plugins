@@ -46,8 +46,21 @@ public OnPluginStart()
     sv_maxrate = FindConVar("sv_maxrate");
     sv_client_min_interp_ratio = FindConVar("sv_client_min_interp_ratio");
     sv_client_max_interp_ratio = FindConVar("sv_client_max_interp_ratio");
-
+	RegConsoleCmd("sm_rates", SetRates, "当你分数大于30w可以手动输入这个指令来设置旁观100tick");
     HookEvent("player_team", OnTeamChange);
+}
+
+public Action SetRates(int client, int args)
+{ 
+	if(!IsValidClient(client))
+		return Plugin_Continue;
+	if(l4dstats_GetClientScore(client) < 300000)
+	{
+		PrintToChat(client, "你的分数小于30W，无法设置旁观速率");
+		return Plugin_Handled;
+	}
+	AdjustRates(client);
+	return Plugin_Continue;	
 }
 
 public OnPluginEnd()
@@ -124,11 +137,11 @@ AdjustRates(client)
         fLastAdjusted[client] = GetEngineTime();
 
         new L4D2Team:team = L4D2Team:GetClientTeam(client);
-        if (team == L4D2Team_Survivor || team == L4D2Team_Infected || (readyUpIsAvailable && IsClientCaster(client)) )
+        if (team == L4D2Team_Survivor || team == L4D2Team_Infected || (readyUpIsAvailable && IsClientCaster(client)) || l4dstats_GetClientScore(client) >= 300000 || GetUserAdmin(client) != INVALID_ADMIN_ID)
         {
             ResetRates(client);
         }
-        else if (team == L4D2Team_Spectator && l4dstats_GetClientScore(client) <= 300000)
+        else if (team == L4D2Team_Spectator)
         {
             SetSpectatorRates(client);
         }

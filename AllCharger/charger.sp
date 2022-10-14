@@ -20,6 +20,7 @@
 #define NAV_MESH_HEIGHT 30.0
 #define PLAYER_HEIGHT 72.0
 #define PLAYER_CHEST 45.0
+#define GAMEDATA "anne_si_spawn"
 #if (DEBUG)
 char sLogFile[PLATFORM_MAX_PATH] = "addons/sourcemod/logs/infected_control.txt";
 #endif
@@ -45,7 +46,7 @@ float g_fSpawnDistanceMin, g_fSpawnDistanceMax, g_fTeleportDistance, g_fSiInterv
 // Bools
 bool g_bTeleportSi, g_bIsLate = false, g_bTargetSystemAvailable = false;
 // Handle
-Handle g_hTeleHandle = INVALID_HANDLE;
+Handle g_hTeleHandle = INVALID_HANDLE, g_hSDKIsVisibleToPlayer;
 // ArrayList
 ArrayList aThreadHandle;
 
@@ -63,6 +64,7 @@ public void OnLibraryRemoved(const char[] name)
 
 public void OnPluginStart()
 {
+	Init();
 	// CreateConVar
 	g_hSpawnDistanceMin = CreateConVar("inf_SpawnDistanceMin", "400.0", "特感复活离生还者最近的距离限制", CVAR_FLAG, true, 0.0);
 	g_hSpawnDistanceMax = CreateConVar("inf_SpawnDistanceMax", "400.0", "特感复活离生还者最远的距离限制", CVAR_FLAG, true, g_hSpawnDistanceMin.FloatValue);
@@ -96,6 +98,34 @@ public void OnPluginStart()
 	// Debug
 	RegAdminCmd("sm_startspawn", Cmd_StartSpawn, ADMFLAG_ROOT, "管理员重置刷特时钟");
 
+}
+
+void Init()
+{
+	GameData hGameData = new GameData(GAMEDATA);
+	if (hGameData == null)
+		SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
+
+
+	// IsVisibleToPlayer(Vector const&, CBasePlayer *, int, int, float, CBaseEntity const*, TerrorNavArea **, bool *);
+	// SDKCall(g_hSDKIsVisibleToPlayer, fTargetPos, i, 2, 3, 0.0, 0, pArea, true);
+	StartPrepSDKCall(SDKCall_Static);
+	if (!PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "IsVisibleToPlayer"))
+		SetFailState("Failed to find signature: IsVisibleToPlayer");
+	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);									// 目标点位
+	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer);								// 客户端
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);								// 客户端团队
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);								// 目标点位团队, 如果为0将考虑客户端的角度
+	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);										// 不清楚
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);								// 不清楚
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Pointer);							// 目标点位 NavArea 区域
+	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Pointer);									// 如果为 false，将自动获取目标点位的 NavArea (GetNearestNavArea)
+	PrepSDKCall_SetReturnInfo(SDKType_Bool, SDKPass_Plain);
+	g_hSDKIsVisibleToPlayer = EndPrepSDKCall();
+	if (g_hSDKIsVisibleToPlayer == null)
+		SetFailState("Failed to create SDKCall: IsVisibleToPlayer");
+
+	delete hGameData;
 }
 
 // 向量绘制
@@ -251,7 +281,7 @@ public void OnGameFrame()
 				fSpawnPos[2] = GetRandomFloat(fSurvivorPos[2], fMaxs[2]);
 				// 找位条件，可视，是否在有效 NavMesh，是否卡住，否则先会判断是否在有效 Mesh 与是否卡住导致某些位置刷不出特感
 				int count2=0;
-				while (PlayerVisibleTo(fSpawnPos) || !IsOnValidMesh(fSpawnPos) || IsPlayerStuck(fSpawnPos))
+				while (PlayerVisibleToSDK(fSpawnPos) || !IsOnValidMesh(fSpawnPos) || IsPlayerStuck(fSpawnPos))
 				{
 					count2++;
 					if(count2 > 20)
@@ -261,14 +291,14 @@ public void OnGameFrame()
 					fSpawnPos[0] = GetRandomFloat(fMins[0], fMaxs[0]);
 					fSpawnPos[1] = GetRandomFloat(fMins[1], fMaxs[1]);
 					fSpawnPos[2] = GetRandomFloat(fSurvivorPos[2], fMaxs[2]);
-					TR_TraceRay(fSpawnPos, fDirection, MASK_NPCSOLID_BRUSHONLY, RayType_Infinite);
+					TR_TraceRay(fSpawnPos, fDirection, MASK_PLAYERSOLID, RayType_Infinite);
 					if(TR_DidHit())
 					{
 						TR_GetEndPosition(fEndPos);
 						if(!IsOnValidMesh(fEndPos))
 						{
 							fSpawnPos[2] = fSurvivorPos[2] + NAV_MESH_HEIGHT;
-							TR_TraceRay(fSpawnPos, fDirection, MASK_NPCSOLID_BRUSHONLY, RayType_Infinite);
+							TR_TraceRay(fSpawnPos, fDirection, MASK_PLAYERSOLID, RayType_Infinite);
 							if(TR_DidHit())
 							{
 								TR_GetEndPosition(fEndPos);
@@ -647,11 +677,12 @@ bool IsOnValidMesh(float fReferencePos[3])
 }
 
 //判断该坐标是否可以看到生还或者距离小于g_fSpawnDistanceMin码，减少一层栈函数，增加实时性,单人模式增加2条射线模仿左右眼
-bool PlayerVisibleTo(float targetposition[3], bool IsTeleport = false)
+stock bool PlayerVisibleTo(float targetposition[3], bool IsTeleport = false)
 {
 	float position[3], vAngles[3], vLookAt[3], spawnPos[3];
 	for (int client = 1; client <= MaxClients; ++client)
 	{
+		GetClientEyePosition(client, position);
 		if (IsClientConnected(client) && IsClientInGame(client) && IsValidSurvivor(client) && IsPlayerAlive(client))
 		{
 			//传送的时候无视倒地或者挂边生还者得实现
@@ -674,7 +705,6 @@ bool PlayerVisibleTo(float targetposition[3], bool IsTeleport = false)
 					Debug_Print("Teleport方法，目标位置依旧能被正常生还者看到，sum为：%d", sum);
 				}			
 			}
-			GetClientEyePosition(client, position);
 			position[0] += 20;
 			if(GetVectorDistance(targetposition, position) < g_fSpawnDistanceMin)
 			{
@@ -721,6 +751,58 @@ bool PlayerVisibleTo(float targetposition[3], bool IsTeleport = false)
 	return false;
 }
 
+//thanks fdxx https://github.com/fdxx/l4d2_plugins/blob/main/l4d2_si_spawn_control.sp
+stock bool PlayerVisibleToSDK(float targetposition[3], bool IsTeleport = false){
+	static float fTargetPos[3];
+
+	float position[3];
+	fTargetPos = targetposition;
+	fTargetPos[2] += 62.0; //眼睛位置
+	Address pArea = L4D_GetNearestNavArea(targetposition, 120.0, false, false, false, 3);
+
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client))
+		{
+			GetClientEyePosition(client, position);
+			//传送的时候无视倒地或者挂边生还者得实现
+			if(IsTeleport && IsClientIncapped(client)){
+				int sum = 0;
+				float temp[3];
+				for(int i = 1; i <= MaxClients; i++){
+					if(i != client && IsValidSurvivor(i) && !IsClientIncapped(i)){
+						GetClientAbsOrigin(i, temp);
+						//倒地生还者500范围内已经没有正常生还者，掠过这个人的视线判断
+						if(GetVectorDistance(temp, position) < 500.0){
+							sum ++;
+						}
+					}
+				}			
+				if(sum == 0){
+					Debug_Print("Teleport方法，目标位置已经不能被正常生还者所看到");
+					continue;
+				}else{
+					Debug_Print("Teleport方法，目标位置依旧能被正常生还者看到，sum为：%d", sum);
+				}			
+			}
+			if(GetVectorDistance(targetposition, position) < g_fSpawnDistanceMin)
+			{
+				return true;
+			}
+			if (SDKCall(g_hSDKIsVisibleToPlayer, targetposition, client, 2, 3, 0.0, 0, pArea, true))
+			{
+				return true;
+			}
+			if (SDKCall(g_hSDKIsVisibleToPlayer, fTargetPos, client, 2, 3, 0.0, 0, pArea, true))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 
 // 判断玩家是否倒地，倒地返回 true，未倒地返回 false
 stock bool IsClientIncapped(int client)
@@ -737,22 +819,50 @@ stock bool IsClientIncapped(int client)
 
 bool IsPlayerStuck(float fSpawnPos[3])
 {
-	bool IsStuck = true;
-	float fMins[3] = {0.0}, fMaxs[3] = {0.0}, fNewPos[3] = {0.0};
-	fNewPos = fSpawnPos;
-	fNewPos[2] += 35.0;
-	fMins[0] = fMins[1] = -16.0;
-	fMins[2] = 0.0;
-	fMaxs[0] = fMaxs[1] = 16.0;
-	fMaxs[2] = 35.0;
-	TR_TraceHullFilter(fSpawnPos, fNewPos, fMins, fMaxs, 147467, TraceFilter, _);
-	IsStuck = TR_DidHit();
-	return IsStuck;
+	//似乎所有客户端的尺寸都一样
+	static const float fClientMinSize[3] = {-16.0, -16.0, 0.0};
+	static const float fClientMaxSize[3] = {16.0, 16.0, 72.0};
+
+	static bool bHit;
+	static Handle hTrace;
+
+	hTrace = TR_TraceHullFilterEx(fSpawnPos, fSpawnPos, fClientMinSize, fClientMaxSize, MASK_PLAYERSOLID, TraceFilter_Stuck);
+	bHit = TR_DidHit(hTrace);
+
+	delete hTrace;
+	return bHit;
 }
 
-bool TraceFilter(int entity, int contentsMask)
+stock bool TraceFilter_Stuck(int entity, int contentsMask)
 {
-	if (entity || entity <= MaxClients || !IsValidEntity(entity))
+	if (entity <= MaxClients || !IsValidEntity(entity))
+	{
+		return false;
+	}
+	else{
+		static char sClassName[20];
+		GetEntityClassname(entity, sClassName, sizeof(sClassName));
+		if (strcmp(sClassName, "env_physics_blocker") == 0 && !EnvBlockType(entity)){
+			return false;
+		}
+	}
+	return true;
+}
+
+stock bool EnvBlockType(int entity){
+	int BlockType = GetEntProp(entity, Prop_Data, "m_nBlockType");
+	//阻拦ai infected
+	if(BlockType == 1 || BlockType == 2){
+		return false;
+	}
+	else{
+		return true;
+	}
+}
+
+stock bool TraceFilter(int entity, int contentsMask)
+{
+	if (entity <= MaxClients || !IsValidEntity(entity))
 	{
 		return false;
 	}
@@ -760,7 +870,7 @@ bool TraceFilter(int entity, int contentsMask)
 	{
 		static char sClassName[9];
 		GetEntityClassname(entity, sClassName, sizeof(sClassName));
-		if (strcmp(sClassName, "infected") == 0 || strcmp(sClassName, "witch") == 0|| strcmp(sClassName, "prop_physics") == 0)
+		if (strcmp(sClassName, "infected") == 0 || strcmp(sClassName, "witch") == 0)
 		{
 			return false;
 		}
@@ -816,12 +926,12 @@ public Action Timer_PositionSi(Handle timer)
 		if(CanBeTeleport(client)){
 			float fSelfPos[3] = {0.0};
 			GetClientEyePosition(client, fSelfPos);
-			if (!PlayerVisibleTo(fSelfPos, true))
+			if (!PlayerVisibleToSDK(fSelfPos, true))
 			{
 				if (g_iTeleCount[client] > g_iTeleportCheckTime)
 				{
 					Debug_Print("%N开始传送",client);
-					if (!PlayerVisibleTo(fSelfPos, true))
+					if (!PlayerVisibleToSDK(fSelfPos, true))
 					{
 						SDKHook(client, SDKHook_PostThinkPost, SDK_UpdateThink);
 						g_iTeleCount[client] = 0;
@@ -905,7 +1015,7 @@ void HardTeleMode(int client)
 {
 	static float fEyePos[3] = {0.0}, fSelfEyePos[3] = {0.0};
 	GetClientEyePosition(client, fEyePos);
-	if (!PlayerVisibleTo(fEyePos) && !IsPinningSomeone(client))
+	if (!PlayerVisibleToSDK(fEyePos) && !IsPinningSomeone(client))
 	{
 		float fSpawnPos[3] = {0.0}, fSurvivorPos[3] = {0.0}, fDirection[3] = {0.0}, fEndPos[3] = {0.0}, fMins[3] = {0.0}, fMaxs[3] = {0.0};
 		if (IsValidSurvivor(g_iTargetSurvivor))
@@ -927,7 +1037,7 @@ void HardTeleMode(int client)
 //			fVisiblePos[2] =fSpawnPos[2];
 			int count2=0;
 			
-			while (PlayerVisibleTo(fSpawnPos) || !IsOnValidMesh(fSpawnPos) || IsPlayerStuck(fSpawnPos))
+			while (PlayerVisibleToSDK(fSpawnPos) || !IsOnValidMesh(fSpawnPos) || IsPlayerStuck(fSpawnPos))
 			{
 				count2 ++;
 				if(count2 > 20)
@@ -937,14 +1047,14 @@ void HardTeleMode(int client)
 				fSpawnPos[0] = GetRandomFloat(fMins[0], fMaxs[0]);
 				fSpawnPos[1] = GetRandomFloat(fMins[1], fMaxs[1]);
 				fSpawnPos[2] = GetRandomFloat(fSurvivorPos[2], fMaxs[2]);
-				TR_TraceRay(fSpawnPos, fDirection, MASK_NPCSOLID_BRUSHONLY, RayType_Infinite);
+				TR_TraceRay(fSpawnPos, fDirection, MASK_PLAYERSOLID, RayType_Infinite);
 				if(TR_DidHit())
 				{
 					TR_GetEndPosition(fEndPos);
 					if(!IsOnValidMesh(fEndPos))
 					{
 						fSpawnPos[2] = fSurvivorPos[2] + NAV_MESH_HEIGHT;
-						TR_TraceRay(fSpawnPos, fDirection, MASK_NPCSOLID_BRUSHONLY, RayType_Infinite);
+						TR_TraceRay(fSpawnPos, fDirection, MASK_PLAYERSOLID, RayType_Infinite);
 						if(TR_DidHit())
 						{
 							TR_GetEndPosition(fEndPos);

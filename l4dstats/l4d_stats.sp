@@ -42,8 +42,8 @@
 
 #define INF_WEAROFF_TIME 0.5
 
-#define Engine_Left4Dead 40
-#define SERVER_VERSION_L4D2 50
+//#define Engine_Left4Dead 40
+//#define SERVER_VERSION_L4D2 50
 
 #define CLEAR_DATABASE_CONFIRMTIME 10.0
 
@@ -104,7 +104,7 @@ new String:StatsSound_Hunter_Perfect[32];
 new String:StatsSound_Tank_Bulldozer[32];
 new bool:Isstart=false;
 // Server version
-new EngineVersion1=Engine_Left4Dead;
+EngineVersion EngineVersion1 =  Engine_Left4Dead;
 
 // Database handle
 new Handle:db = INVALID_HANDLE;
@@ -388,10 +388,10 @@ new Handle:AnnounceGameTime;
 public Plugin:myinfo =
 {
 	name = PLUGIN_NAME,
-	author = "Mikko Andersson (muukis)",
+	author = "Mikko Andersson (muukis), 东",
 	description = PLUGIN_DESCRIPTION,
 	version = PLUGIN_VERSION,
-	url = "http://www.sourcemod.com/"
+	url = "https://github.com/fantasylidong/L4d2_plugins"
 };
 
 //Startup
@@ -791,9 +791,9 @@ public OnPluginStart()
 	// Team Gain Events
 	HookEvent("finale_vehicle_leaving", event_CampaignWin);
 	HookEvent("map_transition", event_MapTransition);
-	HookEvent("create_panic_event", event_PanicEvent);
+	//HookEvent("create_panic_event", event_PanicEvent);
 	HookEvent("player_now_it", event_PlayerBlind);
-	HookEvent("player_no_longer_it", event_PlayerBlindEnd);
+	//HookEvent("player_no_longer_it", event_PlayerBlindEnd);
 	HookEvent("award_earned", event_Award_L4D2);
 	HookEvent("witch_spawn", event_WitchSpawn);
 	HookEvent("witch_killed", event_WitchCrowned);
@@ -2580,8 +2580,7 @@ public UpdatePlayer(client)
 	{
 		return;
 	}
-	if(!IsPlayer(client))
-		return;
+
 
 	decl String:SteamID[MAX_LINE_WIDTH];
 	GetClientRankAuthString(client, SteamID, sizeof(SteamID));
@@ -2645,8 +2644,13 @@ public UpdatePlayerFull(Client, const String:SteamID[], const String:Name[])
 	decl String:IP[16];
 	GetClientIP(Client, IP, sizeof(IP));
 
-	decl String:query[512];
-	Format(query, sizeof(query), "UPDATE %splayers SET lastontime = UNIX_TIMESTAMP(), %s = %s + 1, lastgamemode = %i, name = '%s', ip = '%s' WHERE steamid = '%s'", DbPrefix, Playtime, Playtime, CurrentGamemodeID, Name, IP, SteamID);
+	decl String:query[512];	
+	//旁观者更新时间戳，但是不增加游戏时间，这样来方便统计在线人数
+	if(!IsPlayer(Client))
+		Format(query, sizeof(query), "UPDATE %splayers SET lastontime = UNIX_TIMESTAMP(), lastgamemode = %i, name = '%s', ip = '%s' WHERE steamid = '%s'", DbPrefix, CurrentGamemodeID, Name, IP, SteamID);
+	else
+		Format(query, sizeof(query), "UPDATE %splayers SET lastontime = UNIX_TIMESTAMP(), %s = %s + 1, lastgamemode = %i, name = '%s', ip = '%s' WHERE steamid = '%s'", DbPrefix, Playtime, Playtime, CurrentGamemodeID, Name, IP, SteamID);
+	
 	SQL_TQuery(db, UpdatePlayerCallback, query, Client);
 }
 
@@ -2889,9 +2893,8 @@ public Action:timer_FriendlyFireDamageEnd(Handle:timer, any:dp)
 					Score += ModifyScoreDifficultyNR(RoundToNearest(GetConVarFloat(cvar_FriendlyFireMultiplier) * BotDamage), 2, 4, TEAM_SURVIVORS);
 			}
 		}
-
-		decl String:UpdatePoints[32];
-		switch (CurrentGamemodeID)
+        char UpdatePoints[32];
+        switch (CurrentGamemodeID)
 		{
 			case GAMEMODE_VERSUS:
 			{
@@ -2922,19 +2925,22 @@ public Action:timer_FriendlyFireDamageEnd(Handle:timer, any:dp)
 				Format(UpdatePoints, sizeof(UpdatePoints), "points");
 			}
 		}
+        if(IsNeko()){
+			Score = RoundToFloor(Score / 5.0);
+		}
 
-		decl String:query[1024];
-		Format(query, sizeof(query), "UPDATE %splayers SET %s = %s - %i, award_friendlyfire = award_friendlyfire + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AttackerID);
-		SendSQLUpdate(query);
-
-		new Mode = 0;
-		if (Score > 0)
-			Mode = GetConVarInt(cvar_AnnounceMode);
-
-		if ((Mode == 1 || Mode == 2) && IsClientConnected(Attacker) && IsClientInGame(Attacker))
-			StatsPrintToChat(Attacker, "你因为造成了\x05(%i 血)的友伤\x01  \x03失去了 \x04%i \x01分!", HumanDamage + BotDamage, Score);
-		else if (Mode == 3)
-			StatsPrintToChatAll("\x05%s \x01因为造成了\x05(%i 血)的友伤\x01  \x03失去了 \x04%i \x01分!", AttackerName,HumanDamage + BotDamage, Score );
+        decl String:query[1024];
+        Format(query, sizeof(query), "UPDATE %splayers SET %s = %s - %i, award_friendlyfire = award_friendlyfire + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AttackerID);
+        SendSQLUpdate(query);
+        
+        new Mode = 0;
+        if (Score > 0)
+        	Mode = GetConVarInt(cvar_AnnounceMode);
+        
+        if ((Mode == 1 || Mode == 2) && IsClientConnected(Attacker) && IsClientInGame(Attacker))
+        	StatsPrintToChat(Attacker, "你因为造成了\x05(%i 血)的友伤\x01  \x03失去了 \x04%i \x01分!", HumanDamage + BotDamage, Score);
+        else if (Mode == 3)
+        	StatsPrintToChatAll("\x05%s \x01因为造成了\x05(%i 血)的友伤\x01  \x03失去了 \x04%i \x01分!", AttackerName,HumanDamage + BotDamage, Score );
 
 }
 
@@ -3394,6 +3400,9 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 				Format(UpdatePoints, sizeof(UpdatePoints), "points");
 			}
 		}
+		if(IsNeko()){
+			Score = RoundToFloor(Score / 5.0);
+		}
 
 		decl String:query[1024];
 		Format(query, sizeof(query), "UPDATE %splayers SET %s = %s - %i, award_teamkill = award_teamkill + 1 WHERE steamid = '%s'", DbPrefix, UpdatePoints, UpdatePoints, Score, AttackerID);
@@ -3409,6 +3418,9 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	// Attacker is a Survivor
 	else if (AttackerTeam == TEAM_SURVIVORS && VictimTeam == TEAM_INFECTED)
 	{
+		int human = CheckSurvivorsHumans();
+		if( human < 3)
+			return;
 		new Score = 0;
 		decl String:InfectedType[8];
 
@@ -3538,6 +3550,106 @@ public Action:event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 	}
 }
 
+stock bool IsAnne(){
+	decl String:plugin_name[MAX_LINE_WIDTH];
+	cvar_mode = FindConVar("sv_tags");
+	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
+	if(StrContains(plugin_name, "anne", false)!=-1)
+	{
+		return true;
+	}else
+	{
+		return false;
+	}
+}
+
+stock bool IsNeko(){
+	decl String:plugin_name[MAX_LINE_WIDTH];
+	cvar_mode = FindConVar("sv_tags");
+	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
+	if(StrContains(plugin_name, "neko", false)!=-1)
+	{
+		return true;
+	}else
+	{
+		return false;
+	}
+}
+
+stock bool IsAllCharger(){
+	decl String:plugin_name[MAX_LINE_WIDTH];
+	cvar_mode = FindConVar("sv_tags");
+	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
+	if(StrContains(plugin_name, "allcharger", false)!=-1)
+	{
+		return true;
+	}else
+	{
+		return false;
+	}
+}
+
+stock bool Is1vht(){
+	decl String:plugin_name[MAX_LINE_WIDTH];
+	cvar_mode = FindConVar("sv_tags");
+	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
+	if(StrContains(plugin_name, "1vht", false)!=-1)
+	{
+		return true;
+	}else
+	{
+		return false;
+	}
+}
+
+stock bool IsWitchParty(){
+	decl String:plugin_name[MAX_LINE_WIDTH];
+	cvar_mode = FindConVar("sv_tags");
+	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
+	if(StrContains(plugin_name, "witchparty", false)!=-1)
+	{
+		return true;
+	}else
+	{
+		return false;
+	}
+}
+
+stock bool IsAlone(){
+	decl String:plugin_name[MAX_LINE_WIDTH];
+	cvar_mode = FindConVar("sv_tags");
+	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
+	if(StrContains(plugin_name, "alone", false)!=-1)
+	{
+		return true;
+	}else
+	{
+		return false;
+	}
+}
+
+stock bool SinglePlayerMode(){
+	if(Is1vht() || IsAlone()){
+		return true;
+	}
+	return false;
+}
+
+stock bool MultiPlayerMode(){
+	if(IsAnne() || IsNeko() || IsWitchParty() || IsAllCharger()){
+		return true;
+	}
+	return false;
+}
+
+stock bool AnneMultiPlayerMode(){
+	if(IsAnne() || IsWitchParty() || IsAllCharger()){
+		return true;
+	}
+	return false;
+}
+
+
 // Common Infected death code. +1 on headshot.
 
 public Action:event_InfectedDeath(Handle:event, const String:name[], bool:dontBroadcast)
@@ -3550,12 +3662,9 @@ public Action:event_InfectedDeath(Handle:event, const String:name[], bool:dontBr
 	if (!Attacker || IsClientBot(Attacker) || GetClientTeam(Attacker) == TEAM_INFECTED)
 		return;
 	new Score =0;
-	decl String:plugin_name[MAX_LINE_WIDTH];
-	cvar_mode = FindConVar("sv_tags");
-	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
-	if (StrContains(plugin_name, "anne", false)!=-1||StrContains(plugin_name, "allcharger", false)!=-1)
+	if (AnneMultiPlayerMode())
 		Score = ModifyScoreDifficultyNR(2, 1, 1, TEAM_SURVIVORS);
-	else if(StrContains(plugin_name, "neko", false)!=-1)
+	else if(IsNeko())
 		Score = ModifyScoreDifficultyNR(2, 2, 3, TEAM_SURVIVORS);
 	else {
 		Score = ModifyScoreDifficultyNR(GetConVarInt(cvar_Infected), 2, 3, TEAM_SURVIVORS);
@@ -4204,7 +4313,7 @@ public Action:event_CampaignWin(Handle:event, const String:name[], bool:dontBroa
 			}
 		}
 	}
-	int inf=GetConVarInt(FindConVar("l4d_infected_limit"));
+	int inf= GetAnneInfectedNumber();
 	if(inf>4)
 		Score=RoundToFloor(Score+Score*(inf-4)*0.1);
 	else if(inf>6)
@@ -4423,7 +4532,7 @@ public Action:event_PlayerBlindEnd(Handle:event, const String:name[], bool:dontB
 			new maxplayers = MaxClients;
 			for (new i = 1; i <= maxplayers; i++)
 			{
-				if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i))
+				if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i) && GetClientTeam(i) == 2)
 				{
 					GetClientRankAuthString(i, iID, sizeof(iID));
 					Format(query, sizeof(query), "UPDATE %splayers SET %s = %s + %i WHERE steamid = '%s' ", DbPrefix, UpdatePoints, UpdatePoints, Score, iID);
@@ -4543,6 +4652,9 @@ PlayerIncap(Attacker, Victim)
 			{
 				Format(UpdatePoints, sizeof(UpdatePoints), "points");
 			}
+		}
+		if(IsNeko()){
+			Score = RoundToFloor(Score / 5.0);
 		}
 
 		decl String:query[512];
@@ -5072,7 +5184,8 @@ public Action:event_JockeyKilled(Handle:event, const String:name[], bool:dontBro
 
 public Action:event_ChargerKilled(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	if (StatsDisabled() || CampaignOver)
+	int human = CheckSurvivorsHumans();
+	if (StatsDisabled() || CampaignOver || human < 3)
 		return;
 
 	new Killer = GetClientOfUserId(GetEventInt(event, "attacker"));
@@ -6091,11 +6204,14 @@ public Action:event_Award_L4D2(Handle:event, const String:name[], bool:dontBroad
 		Score=200;
 		if (!GetConVarBool(cvar_EnableNegativeScore))
 			return;
-		cvar_mode = FindConVar("sv_tags");
-		decl String:plugin_name[MAX_LINE_WIDTH];
-		GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
-		if (StrContains(plugin_name, "anne", false)!=-1)Score=200;
-		else Score=50;
+		if (AnneMultiPlayerMode()){
+			Score = 200;
+		}else if(IsNeko()){
+			Score = 50;
+		}
+		else {
+			Score=0;
+		}
 		if (Mode)
 			StatsPrintToChat(User, "\x03所有幸存者 \x01都 \x03掉了 \x04%i \x01分 by \x03大家又坐牢了!", Score);
 		Mode=0;
@@ -8973,7 +9089,8 @@ Private functions
 
 HunterSmokerSave(Savior, Victim, BasePoints, AdvMult, ExpertMult, String:SaveFrom[], String:SQLField[])
 {
-	if (StatsDisabled())
+	int human = CheckSurvivorsHumans();
+	if (StatsDisabled() || human < 3)
 		return;
 
 	if (IsClientBot(Savior) || IsClientBot(Victim))
@@ -9201,6 +9318,19 @@ InvalidGameMode()
 	}
 
 	return true;
+}
+
+stock int CheckSurvivorsHumans()
+{
+	new humans = 0;
+	for (new i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientConnected(i) && IsClientInGame(i) && !IsClientBot(i) && GetClientTeam(i) == 2)
+		{
+			humans++;
+		}
+	}
+	return humans;
 }
 
 bool:CheckHumans()
@@ -9552,6 +9682,22 @@ public CheckSurvivorsWin()
 	}
 	if(Score>400)
 		Score=400;
+	
+	if (SinglePlayerMode())
+	{
+		int addScore = 0;
+		if( GetAnneInfectedNumber() > 3){
+			addScore = (GetAnneInfectedNumber() - 3) * 100;
+		}
+		char buffer[256];
+		Format(buffer, sizeof(buffer), "\x03单人模式 \x01没有\x04特感击杀奖励，所以过关奖励分数\x053倍");
+		if(addScore > 0){
+			Format(buffer, sizeof(buffer), "%s, 获得难度分数补贴 %d 分", buffer, addScore);
+		}
+		StatsPrintToChatTeam(TEAM_SURVIVORS, buffer);
+		Score *=3;
+	}
+	
 	new String:All4Safe[64] = "";
 	if (Deaths == 0)
 		Format(All4Safe, sizeof(All4Safe), ", award_allinsafehouse = award_allinsafehouse + 1");
@@ -9586,7 +9732,7 @@ public CheckSurvivorsWin()
 		}
 	}
 	
-	int inf=GetConVarInt(FindConVar("l4d_infected_limit"));
+	int inf = GetAnneInfectedNumber();
 	if(inf>4)
 		Score=RoundToFloor(Score+Score*(inf-4)*0.2);
 	else if(inf>6)
@@ -9603,6 +9749,10 @@ public CheckSurvivorsWin()
 
 	PlayerVomited = false;
 	PanicEvent = false;
+}
+
+stock int GetAnneInfectedNumber(){
+	return GetConVarInt(FindConVar("l4d_infected_limit"));
 }
 
 IsSingleTeamGamemode()
@@ -10091,6 +10241,9 @@ UpdateFriendlyFire(Attacker, Victim)
 		{
 			Format(UpdatePoints, sizeof(UpdatePoints), "points");
 		}
+	}
+	if(IsNeko()){
+			Score = RoundToFloor(Score / 5.0);
 	}
 
 	decl String:query[1024];
@@ -10919,11 +11072,7 @@ public StopMapTiming()
 
 public UpdateMapTimingStat(Handle:owner, Handle:hndl, const String:error[], any:dp)
 {
-	
-	decl String:plugin_name[MAX_LINE_WIDTH];
-	cvar_mode = FindConVar("sv_tags");
-	GetConVarString(cvar_mode, plugin_name, sizeof(plugin_name));
-	if (StrContains(plugin_name, "1vht", false)!=-1||StrContains(plugin_name, "neko", false)!=-1||StrContains(plugin_name, "allcharger", false)!=-1||StrContains(plugin_name, "hardcoop", false)!=-1||StrContains(plugin_name, "alone", false)!=-1)return;
+	if (!IsAnne())return;
 	ResetPack(dp);
 
 	decl String:MapName[MAX_LINE_WIDTH], String:ClientID[MAX_LINE_WIDTH], String:query[512], String:TimeLabel[32], String:Mutation[MAX_LINE_WIDTH];

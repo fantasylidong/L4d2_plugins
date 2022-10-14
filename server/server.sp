@@ -8,27 +8,54 @@
 #include <colors>
 #undef REQUIRE_PLUGIN
 #include <CreateSurvivorBot>
+#include <veterans>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define SCORE_DELAY_EMPTY_SERVER 3.0
 #define L4D_MAXHUMANS_LOBBY_OTHER 3
 #define IsValidClient(%1)		(1 <= %1 <= MaxClients && IsClientInGame(%1))
 #define IsValidAliveClient(%1)	(1 <= %1 <= MaxClients && IsClientInGame(%1) && IsPlayerAlive(%1))
+
+bool g_bGroupSystemAvailable = false;
+
+public void OnAllPluginsLoaded(){
+	g_bGroupSystemAvailable = LibraryExists("veterans");
+}
+public void OnLibraryAdded(const char[] name)
+{
+    if ( StrEqual(name, "veterans") ) { g_bGroupSystemAvailable = true; }
+}
+public void OnLibraryRemoved(const char[] name)
+{
+    if ( StrEqual(name, "veterans") ) { g_bGroupSystemAvailable = false; }
+}
+
+enum ZombieClass
+{
+	ZC_SMOKER = 1,
+	ZC_BOOMER,
+	ZC_HUNTER,
+	ZC_SPITTER,
+	ZC_JOCKEY,
+	ZC_CHARGER,
+	ZC_WITCH,
+	ZC_TANK
+};
+
 public Plugin myinfo = 
 {
 	name 			= "AnneServer Server Function",
 	author 			= "def075, Caibiii，东",
 	description 	= "Advanced Special Infected AI",
-	version 		= "2022.04.24",
+	version 		= "2022.10.09",
 	url 			= "https://github.com/Caibiii/AnneServer"
 }
 
 new Handle:hCvarMotdTitle;
 new Handle:hCvarMotdUrl;
 new Handle:hCvarIPUrl;
-new Handle:COLD_DOWN_Timer;
-ConVar hMaxSurvivors,hSurvivorsManagerEnable;
-int iMaxSurvivors,iEnable;
+ConVar hMaxSurvivors, hSurvivorsManagerEnable, hCvarAutoKickTank;
+int iMaxSurvivors, iEnable, iAutoKickTankEnable;
 public OnPluginStart()
 {
 	RegConsoleCmd("sm_away", AFKTurnClientToSpe);
@@ -44,21 +71,28 @@ public OnPluginStart()
 	HookEvent("finale_win", ResetSurvivors);
 	HookEvent("map_transition", ResetSurvivors);
 	HookEvent("round_start", event_RoundStart);
+	HookEvent("player_spawn", 	Event_PlayerSpawn);
+	HookEvent("player_incapacitated", OnPlayerIncappedOrDeath);
+	HookEvent("player_death", OnPlayerIncappedOrDeath);
 	HookEvent("player_disconnect", PlayerDisconnect_Event, EventHookMode_Pre);
 	RegConsoleCmd("sm_join", AFKTurnClientToSurvivors);
 	RegConsoleCmd("sm_jg", AFKTurnClientToSurvivors);
 	RegConsoleCmd("sm_ip", ShowAnneServerIP);
+	RegConsoleCmd("sm_web", ShowAnneServerWeb);
 	RegConsoleCmd("sm_setbot", SetBot);
+	RegAdminCmd("sm_kicktank", KickMoreTankThanOne, ADMFLAG_KICK, "有多只tank得情况，随机踢至只有一只");
 	SetConVarBounds(FindConVar("survivor_limit"), ConVarBound_Upper, true, 8.0);
 	RegAdminCmd("sm_addbot", ADMAddBot, ADMFLAG_KICK, "Attempt to add a survivor bot (this bot will not be kicked by this plugin until someone takes over)");
-	RegAdminCmd("sm_restart", RestartServer, ADMFLAG_ROOT, "Kicks all clients and restarts server");
 	hSurvivorsManagerEnable = CreateConVar("l4d_multislots_survivors_manager_enable", "0", "Enable or Disable survivors manage",CVAR_FLAGS, true, 0.0, true, 1.0);
 	hMaxSurvivors	= CreateConVar("l4d_multislots_max_survivors", "4", "Kick AI Survivor bots if numbers of survivors has exceeded the certain value. (does not kick real player, minimum is 4)", CVAR_FLAGS, true, 4.0, true, 8.0);
-	hCvarMotdTitle = CreateConVar("sm_cfgmotd_title", "AnneHappy");
-    hCvarMotdUrl = CreateConVar("sm_cfgmotd_url", "http://111.67.204.59/aliyun/serverip.php");  // 以后更换为数据库控制
-	hCvarIPUrl = CreateConVar("sm_cfgip_url", "http://111.67.204.59/aliyun/serverip.php");	// 以后更换为数据库控制
+	hCvarAutoKickTank = CreateConVar("l4d_multislots_autokicktank", "0", "Auto kick tank when tank number above one", CVAR_FLAGS, true, 0.0, true, 1.0);
+	hCvarMotdTitle = CreateConVar("sm_cfgmotd_title", "AnneHappy电信服");
+    hCvarMotdUrl = CreateConVar("sm_cfgmotd_url", "http://sb.trygek.com:8880/l4d_stats/index.php");  // 以后更换为数据库控制
+	hCvarIPUrl = CreateConVar("sm_cfgip_url", "http://sb.trygek.com:8880/index.php");	// 以后更换为数据库控制
 	hSurvivorsManagerEnable.AddChangeHook(ConVarChanged_Cvars);
 	hMaxSurvivors.AddChangeHook(ConVarChanged_Cvars);
+	hCvarAutoKickTank.AddChangeHook(ConVarChanged_Cvars);
+	GetCvars();
 }
 
 public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
@@ -66,10 +100,45 @@ public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char
 	GetCvars();
 }
 
+public OnPlayerIncappedOrDeath(Handle event, char[] name, bool dontBroadcast) {
+	int client = GetClientOfUserId(GetEventInt(event,"userid"));
+	if(!client)
+		return;
+	if(!IsClientConnected(client) || !IsClientInGame(client))
+	if((GetClientTeam(client) !=2))
+		return;
+	if(IsTeamImmobilised())
+	{
+		SlaySurvivors();
+	}
+}
+
+bool IsTeamImmobilised() {
+	bool bIsTeamImmobilised = true;
+	for (new client = 1; client < MaxClients; client++) {
+		if (IsSurvivor(client) && IsPlayerAlive(client)) {
+			if (!L4D_IsPlayerIncapacitated(client) ) {		
+				bIsTeamImmobilised = false;				
+				break;
+			} 
+		} 
+	}
+	return bIsTeamImmobilised;
+}
+
+void SlaySurvivors() { //incap everyone
+	for (new client = 1; client < (MAXPLAYERS + 1); client++) {
+		if (IsSurvivor(client) && IsPlayerAlive(client)) {
+			ForcePlayerSuicide(client);
+		}
+	}
+}
+
 void GetCvars()
 {
 	iEnable = hSurvivorsManagerEnable.IntValue;
 	iMaxSurvivors = hMaxSurvivors.IntValue;
+	iAutoKickTankEnable = hCvarAutoKickTank.IntValue;
 	if(iEnable){
 		if(GetSurvivorCount() < iMaxSurvivors)
 		{
@@ -92,6 +161,16 @@ void GetCvars()
 	}
 }
 
+public void Event_PlayerSpawn(Event hEvent, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId( hEvent.GetInt( "userid" ));
+	if( IsValidClient(client) && IsAiTank(client) &&iAutoKickTankEnable){
+		KickMoreTank(true);
+	}
+		
+}
+
+
 
 
 ////////////////////////////////////
@@ -109,6 +188,67 @@ public Action ADMAddBot(int client, int args)
 	
 	return Plugin_Handled;
 }
+
+//踢出数量大于1的tank
+public Action KickMoreTankThanOne(int client, int args)
+{
+	if(client == 0)
+		return Plugin_Continue;
+	
+	KickMoreTank(false);
+	
+	return Plugin_Handled;
+}
+
+public void KickMoreTank(bool autoKick){
+	int tankNum = 0, tank[32];
+	for(int i = 0; i < MaxClients; i++){
+		if( IsValidClient(i) && IsAiTank(i)){
+			tank[tankNum++] = i;
+		}
+	}
+	if(tankNum <= 1){
+		if(!autoKick)
+			PrintToChatAll("\x04一切正常还想踢克逃课？");
+	}else{
+		for(int i = tankNum - 1; i > 0; i--){
+			KickClient(i, "过分了啊，一个克就够难了, %N 被踢出", tank[i]);
+		}
+		PrintToChatAll("\x04已经踢出多余的克");
+	}
+}
+// 是否 ai 坦克
+bool IsAiTank(int client)
+{
+	return view_as<bool>(GetInfectedClass(client) == view_as<int>(ZC_TANK) && IsFakeClient(client));
+}
+
+// 获取特感类型，成功返回特感类型，失败返回 0
+stock int GetInfectedClass(int client)
+{
+	if (IsValidInfected(client))
+	{
+		return GetEntProp(client, Prop_Send, "m_zombieClass");
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+// 判断特感是否有效，有效返回 true，无效返回 false
+stock bool IsValidInfected(int client)
+{
+	if (IsValidClient(client) && GetClientTeam(client) == 2)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 
 //try to spawn survivor
 bool SpawnFakeClient()
@@ -157,6 +297,8 @@ public Action:SetBot(client, args)
 	}
 }
 
+
+
 /**
  * @brief Get survivor count.
  * 
@@ -185,15 +327,6 @@ public Action Timer_MobChange(Handle timer)
 }
 */
 
-void UnloadAccelerator()
-{
-	int Id = GetAcceleratorId();
-	if (Id != -1)
-	{
-		ServerCommand("sm exts unload %i 0", Id);
-		ServerExecute();
-	}
-}
 
 public Action:PlayerDisconnect_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
@@ -269,29 +402,8 @@ public Action:PlayerDisconnect_Event(Handle:event, const String:name[], bool:don
     return Plugin_Handled;
 } 
 
-// by sorallll
-int GetAcceleratorId()
-{
-	char sBuffer[512];
-	ServerCommandEx(sBuffer, sizeof(sBuffer), "sm exts list");
-	int index = SplitString(sBuffer, "] Accelerator (", sBuffer, sizeof(sBuffer));
-	if (index == -1)
-		return -1;
 
-	for (int i = strlen(sBuffer); i >= 0; i--)
-	{
-		if(sBuffer[i] == '[')
-			return StringToInt(sBuffer[i + 1]);
-	}
 
-	return -1;
-}
-
-public Action RestartServer(client,args)
-{
-	UnloadAccelerator();
-	CreateTimer(3.0, CrashServer);
-}
 
 public void OnAutoConfigsBuffered()
 {
@@ -304,6 +416,7 @@ public void OnAutoConfigsBuffered()
         ServerCommand("exec \"%s\"", sMapConfig);
      }
 } 
+
 ShowMotdToPlayer(client)
 {
 	decl String:title[64], String:url[192];
@@ -311,6 +424,7 @@ ShowMotdToPlayer(client)
     GetConVarString(hCvarMotdUrl, url, sizeof(url));
     ShowMOTDPanel(client, title, url, MOTDPANEL_TYPE_URL);
 }
+
 public Action:ShowAnneServerIP(client, args) 
 {
     decl String:title[64], String:url[192];
@@ -318,6 +432,15 @@ public Action:ShowAnneServerIP(client, args)
     GetConVarString(hCvarIPUrl, url, sizeof(url));
 	ShowMOTDPanel(client, title, url, MOTDPANEL_TYPE_URL);
 }
+
+public Action:ShowAnneServerWeb(client, args) 
+{
+    decl String:title[64], String:url[192];
+    GetConVarString(hCvarMotdTitle, title, sizeof(title));
+    GetConVarString(hCvarMotdUrl, url, sizeof(url));
+	ShowMOTDPanel(client, title, url, MOTDPANEL_TYPE_URL);
+}
+
 void checkbot(){
 	int count=0;
 	for (new i = 1; i <= MaxClients; i++)
@@ -335,6 +458,7 @@ void checkbot(){
 		}	
 	}
 }
+
 public Action:AFKTurnClientToSurvivors(client, args)
 { 
 	checkbot();
@@ -349,10 +473,12 @@ public Action RestartMap(client,args)
 {
 	CrashMap();
 }
+
 public event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	CreateTimer( 3.0, Timer_DelayedOnRoundStart, _, TIMER_FLAG_NO_MAPCHANGE );
 }
+
 public Action:Timer_DelayedOnRoundStart(Handle:timer) 
 {
 	SetConVarString(FindConVar("mp_gamemode"), "coop");
@@ -377,9 +503,16 @@ public Action:ResetSurvivors(Handle:event, const String:name[], bool:dontBroadca
 	RestoreHealth();
 	ResetInventory();
 }
+
 public OnClientPutInServer(client)
 {
-	ShowMotdToPlayer(client);
+	if(g_bGroupSystemAvailable){
+		if(!Veterans_Get(client, view_as<TARGET_OPTION_INDEX>(GOURP_MEMBER))){
+			ShowMotdToPlayer(client);
+		}
+	}else{
+		ShowMotdToPlayer(client);
+	}
 
 	if(client > 0 && IsClientConnected(client) && !IsFakeClient(client))
 	{
@@ -452,6 +585,7 @@ public Action:AFKTurnClientToSpe(client, args)
 	CreateTimer(2.5, Timer_CheckAway, client, TIMER_FLAG_NO_MAPCHANGE);
 	return Plugin_Handled;
 }
+
 public Action:Timer_CheckAway(Handle:Timer, any:client)
 {
 	ChangeClientTeam(client, 1); 
@@ -499,59 +633,18 @@ public OnClientConnected(client)
 		PrintToChatAll("\x04 %N \x05正在爬进服务器",client);
 	}
 }
-
+/*
 // 玩家离开游戏 
 public OnClientDisconnect(client)
 {
 	if(!client || IsFakeClient(client) || (IsClientConnected(client) && !IsClientInGame(client))) return; //連線中尚未進來的玩家離線
-	/*
 	if(!IsFakeClient(client))
 	{
 		PrintToChatAll("\x04 %N \x05离开服务器",client);
 	}
-	*/
-	if(client && !checkrealplayerinSV(client)) //檢查是否還有玩家以外的人還在伺服器或是連線中
-	{
-		delete COLD_DOWN_Timer;
-		COLD_DOWN_Timer = CreateTimer(5.0, COLD_DOWN);
-	}
 }
+*/
 
-public Action COLD_DOWN(Handle timer, any client)
-{
-	if(checkrealplayerinSV(0))
-	{
-		COLD_DOWN_Timer = null;
-		return Plugin_Continue;
-	}
-	
-	LogMessage("Last one player left the server, Restart server now");
-
-	UnloadAccelerator();
-	CreateTimer(3.0, CrashServer);
-
-	COLD_DOWN_Timer = null;
-	return Plugin_Continue;
-}
-bool checkrealplayerinSV(int client)
-{
-	for (int i = 1; i < MaxClients+1; i++)
-		if(IsClientConnected(i) && !IsFakeClient(i) &&i !=client)
-			return true;
-
-	return false;
-}
-public void OnPluginEnd()
-{
-	delete COLD_DOWN_Timer;
-}
-
-
-
-public void OnMapEnd()
-{
-	delete COLD_DOWN_Timer;
-}
 
 //秒妹回实血
 public WitchKilled_Event(Handle:event, const String:name[], bool:dontBroadcast)
@@ -573,6 +666,7 @@ public Action:OnNormalSound(int clients[64], int &numClients, char sample[PLATFO
 {
 	return (StrContains(sample, "firewerks", true) > -1) ? Plugin_Stop : Plugin_Continue;
 }
+
 public Action:OnAmbientSound(char sample[PLATFORM_MAX_PATH], int &entity, float &volume, int &level, int &pitch, float pos[3], int &flags, float &delay)
 {
 	return (StrContains(sample, "firewerks", true) > -1) ? Plugin_Stop : Plugin_Continue;

@@ -1430,7 +1430,7 @@ float GetMaxSurvivorCompletion()
 	float flow = 0.0, tmp_flow = 0.0, origin[3];
 	Address pNavArea;
 	for (int i = 1; i <= MaxClients; i++) {
-		if (IsClientInGame(i) && GetClientTeam(i) == 2) {
+		if (IsClientInGame(i) && GetClientTeam(i) == 2 && IsPlayerAlive(i)) {
 			GetClientAbsOrigin(i, origin);
 			pNavArea = L4D2Direct_GetTerrorNavArea(origin);
 			if (pNavArea == Address_Null) 

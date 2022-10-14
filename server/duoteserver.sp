@@ -6,6 +6,8 @@
 #include <left4dhooks>
 #include <colors>
 #include <steamworks>
+#undef REQUIRE_PLUGIN
+#include <veterans>
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define SCORE_DELAY_EMPTY_SERVER 3.0
@@ -13,9 +15,23 @@
 #define IsValidClient(%1)		(1 <= %1 <= MaxClients && IsClientInGame(%1))
 #define IsValidAliveClient(%1)	(1 <= %1 <= MaxClients && IsClientInGame(%1) && IsPlayerAlive(%1))
 
+bool g_bGroupSystemAvailable = false;
+
+public void OnAllPluginsLoaded(){
+	g_bGroupSystemAvailable = LibraryExists("veterans");
+}
+public void OnLibraryAdded(const char[] name)
+{
+    if ( StrEqual(name, "veterans") ) { g_bGroupSystemAvailable = true; }
+}
+public void OnLibraryRemoved(const char[] name)
+{
+    if ( StrEqual(name, "veterans") ) { g_bGroupSystemAvailable = false; }
+}
+
 new Handle:hCvarMotdUrl;
 new Handle:hCvarIPUrl;
-new Handle:COLD_DOWN_Timer;
+new Handle:hCvarMotdTitle;
 public OnPluginStart()
 {
 	RegConsoleCmd("sm_away", AFKTurnClientToSpe);
@@ -27,13 +43,16 @@ public OnPluginStart()
 	HookEvent("map_transition", ChangeMap_Event);
 	HookEvent("witch_killed", WitchKilled_Event);
 	HookEvent("revive_success", BlackReminder_Event);
+	HookEvent("player_incapacitated", OnPlayerIncappedOrDeath);
+	HookEvent("player_death", OnPlayerIncappedOrDeath);
 	HookEvent("player_disconnect", PlayerDisconnect_Event, EventHookMode_Pre);
 	RegConsoleCmd("sm_ip", ShowAnneServerIP);
+	RegConsoleCmd("sm_web", ShowAnneServerWeb);
 	RegConsoleCmd("sm_zs", ZiSha);
 	RegConsoleCmd("sm_kill", ZiSha);
-	RegAdminCmd("sm_restart", RestartServer, ADMFLAG_ROOT, "Kicks all clients and restarts server");
+	hCvarMotdTitle = CreateConVar("sm_cfgmotd_title", "电信战役服");
     hCvarMotdUrl = CreateConVar("sm_cfgmotd_url", "http://sb.trygek.com:8880/l4d_stats/index.php");  // 以后更换为数据库控制
-	hCvarIPUrl = CreateConVar("sm_cfgip_url", "http://sb.trygek.com:8880/l4d_stats/index.php");	// 以后更换为数据库控制
+	hCvarIPUrl = CreateConVar("sm_cfgip_url", "http://sb.trygek.com:8880/index.php");	// 以后更换为数据库控制
 }
 
 
@@ -133,49 +152,28 @@ public Action:ZiSha(client, args)
 	ForcePlayerSuicide(client);
 	return Plugin_Handled;
 }
-void UnloadAccelerator()
-{
-	int Id = GetAcceleratorId();
-	if (Id != -1)
-	{
-		ServerCommand("sm exts unload %i 0", Id);
-		ServerExecute();
-	}
-}
-
-// by sorallll
-int GetAcceleratorId()
-{
-	char sBuffer[512];
-	ServerCommandEx(sBuffer, sizeof(sBuffer), "sm exts list");
-	int index = SplitString(sBuffer, "] Accelerator (", sBuffer, sizeof(sBuffer));
-	if (index == -1)
-		return -1;
-
-	for (int i = strlen(sBuffer); i >= 0; i--)
-	{
-		if(sBuffer[i] == '[')
-			return StringToInt(sBuffer[i + 1]);
-	}
-
-	return -1;
-}
-public Action RestartServer(client,args)
-{
-	UnloadAccelerator();
-	CreateTimer(3.0, CrashServer);
-}
 
 ShowMotdToPlayer(client)
 {
 	decl String:title[64], String:url[192];
+    GetConVarString(hCvarMotdTitle, title, sizeof(title));
     GetConVarString(hCvarMotdUrl, url, sizeof(url));
     ShowMOTDPanel(client, title, url, MOTDPANEL_TYPE_URL);
 }
+
 public Action:ShowAnneServerIP(client, args) 
 {
     decl String:title[64], String:url[192];
+    GetConVarString(hCvarMotdTitle, title, sizeof(title));
     GetConVarString(hCvarIPUrl, url, sizeof(url));
+	ShowMOTDPanel(client, title, url, MOTDPANEL_TYPE_URL);
+}
+
+public Action:ShowAnneServerWeb(client, args) 
+{
+    decl String:title[64], String:url[192];
+    GetConVarString(hCvarMotdTitle, title, sizeof(title));
+    GetConVarString(hCvarMotdUrl, url, sizeof(url));
 	ShowMOTDPanel(client, title, url, MOTDPANEL_TYPE_URL);
 }
 
@@ -186,7 +184,27 @@ public Action RestartMap(client,args)
 
 public OnClientPutInServer(client)
 {
-	ShowMotdToPlayer(client);
+	if(g_bGroupSystemAvailable){
+		if(!Veterans_Get(client, view_as<TARGET_OPTION_INDEX>(GOURP_MEMBER))){
+			ShowMotdToPlayer(client);
+		}
+	}else{
+		ShowMotdToPlayer(client);
+	}
+}
+
+
+public OnPlayerIncappedOrDeath(Handle event, char[] name, bool dontBroadcast) {
+	int client = GetClientOfUserId(GetEventInt(event,"userid"));
+	if(!client)
+		return;
+	if(!IsClientConnected(client) || !IsClientInGame(client))
+	if((GetClientTeam(client) !=2))
+		return;
+	if(IsTeamImmobilised())
+	{
+		SlaySurvivors();
+	}
 }
 
 public void OnGameFrame(){
@@ -232,57 +250,7 @@ public OnClientConnected(client)
 	}
 }
 
-// 玩家离开游戏 
-public OnClientDisconnect(client)
-{
-	if(!client || IsFakeClient(client) || (IsClientConnected(client) && !IsClientInGame(client))) return; //連線中尚未進來的玩家離線
-	/*
-	if(!IsFakeClient(client))
-	{
-		PrintToChatAll("\x04 %N \x05离开服务器",client);
-	}*/
-	if(client && !checkrealplayerinSV(client)) //檢查是否還有玩家以外的人還在伺服器或是連線中
-	{
-		delete COLD_DOWN_Timer;
-		COLD_DOWN_Timer = CreateTimer(5.0, COLD_DOWN);
-	}
-}
 
-public Action COLD_DOWN(Handle timer, any client)
-{
-	if(checkrealplayerinSV(0))
-	{
-		COLD_DOWN_Timer = null;
-		return Plugin_Continue;
-	}
-	
-	LogMessage("Last one player left the server, Restart server now");
-
-	UnloadAccelerator();
-	CreateTimer(3.0, CrashServer);
-
-	COLD_DOWN_Timer = null;
-	return Plugin_Continue;
-}
-bool checkrealplayerinSV(int client)
-{
-	for (int i = 1; i < MaxClients+1; i++)
-		if(IsClientConnected(i) && !IsFakeClient(i) &&i !=client)
-			return true;
-
-	return false;
-}
-public void OnPluginEnd()
-{
-	delete COLD_DOWN_Timer;
-}
-
-
-
-public void OnMapEnd()
-{
-	delete COLD_DOWN_Timer;
-}
 
 //过图回复不满50血的血量
 public ChangeMap_Event(Handle:event, const String:name[], bool:dontBroadcast)
@@ -330,13 +298,6 @@ public BlackReminder_Event(Handle:event, const String:name[], bool:dontBroadcast
 		PrintToChatAll("\x05请注意，\x04 %N \x05已经黑白啦",client);
 }
 
-
-public Action:CrashServer(Handle:timer)
-{
-    SetCommandFlags("crash", GetCommandFlags("crash")&~FCVAR_CHEAT);
-    ServerCommand("crash");
-}
-
 CrashMap()
 {
     decl String:mapname[64];
@@ -369,7 +330,29 @@ stock bool:IsSurvivor(client)
 	}
 }
 
+/**
+ * @return: true if all survivors are either incapacitated or pinned
+**/
+bool IsTeamImmobilised() {
+	bool bIsTeamImmobilised = true;
+	for (new client = 1; client < MaxClients; client++) {
+		if (IsSurvivor(client) && IsPlayerAlive(client)) {
+			if (!L4D_IsPlayerIncapacitated(client) ) {		
+				bIsTeamImmobilised = false;				
+				break;
+			} 
+		} 
+	}
+	return bIsTeamImmobilised;
+}
 
+void SlaySurvivors() { //incap everyone
+	for (new client = 1; client < (MAXPLAYERS + 1); client++) {
+		if (IsSurvivor(client) && IsPlayerAlive(client)) {
+			ForcePlayerSuicide(client);
+		}
+	}
+}
 
 //判断生还者是否已经被控
 stock bool:IsPinned(client) 

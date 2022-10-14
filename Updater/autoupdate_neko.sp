@@ -14,17 +14,26 @@ public Plugin myinfo =
 	version 		= "2022.05.05",
 	url 			= "https://github.com/fantasylidong/"
 }
+static bool firstStart = true;
 public void OnPluginStart()
 {
     if (LibraryExists("updater"))
     {
         Updater_AddPlugin(UPDATE_URL);
-    }
+        if(firstStart){
+            ServerCommand("sm_updater_forcecheck");
+            firstStart = false;
+        }   
+    } 
 }
 public void OnLibraryAdded(const char[] name)
 {
     if (StrEqual(name, "updater"))
     {
         Updater_AddPlugin(UPDATE_URL);
+        if(firstStart){
+            ServerCommand("sm_updater_forcecheck");
+            firstStart = false;
+        }   
     }
 }

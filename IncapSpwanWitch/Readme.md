@@ -1,0 +1,2 @@
+被witch挠倒生成一只新的witch，支持i18n翻译
+我只用于Anne服witchparty插件中

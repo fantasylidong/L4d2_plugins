@@ -10,9 +10,10 @@
 #define TEAM_SURVIVOR 2
 #define TEAM_INFECTED 3
 #define CVAR_FLAGS		FCVAR_NOTIFY
+#define GAMEDATA "anne_si_spawn"
 #include <l4d2_saferoom_detect>
 
-#define PLUGIN_VERSION "1.8"
+#define PLUGIN_VERSION "1.9"
 ConVar 	g_hCvarEnable;
 ConVar 	g_hCvarStuckInterval;
 ConVar 	g_hCvarNonStuckRadius;
@@ -22,7 +23,7 @@ ConVar  g_hCvarRusherCheckTimes;
 ConVar  g_hCvarRusherCheckInterv;
 ConVar  g_hCvarRusherMinPlayers;
 
-Handle 	g_hTimerRusher = INVALID_HANDLE;
+Handle 	g_hTimerRusher = INVALID_HANDLE, g_hSDKIsVisibleToPlayer;
 
 float 	g_pos[MAXPLAYERS+1][3];
 float	g_fTankClawRange;
@@ -35,6 +36,9 @@ int 	g_iRushTimes[MAXPLAYERS+1];
 int		g_iTanksCount;
 /*
 	ChangeLog:
+	1.9
+		更改PlayerVisibleTo函数为PlayerVisibleToSDK函数
+
 	1.8
 		增加所有生还者都在tank进度前时不触发跑男惩罚
 		
@@ -74,6 +78,7 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
+	Init();
 	CreateConVar(							"l4d2_Anne_stuck_tank_teleport",				PLUGIN_VERSION,	"Plugin version", FCVAR_DONTRECORD );
 	g_hCvarEnable = CreateConVar(			"l4d2_Anne_stuck_tank_teleport_enable",					"1",		"Enable plugin (1 - On / 0 - Off)", CVAR_FLAGS );	
 	g_hCvarStuckInterval = CreateConVar(	"l4d2_Anne_stuck_tank_teleport_check_interval",			"3",		"Time intervals (in sec.) tank stuck should be checked", CVAR_FLAGS );
@@ -105,6 +110,35 @@ public void OnPluginStart()
 		}
 	}
 }
+
+void Init()
+{
+	GameData hGameData = new GameData(GAMEDATA);
+	if (hGameData == null)
+		SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
+
+
+	// IsVisibleToPlayer(Vector const&, CBasePlayer *, int, int, float, CBaseEntity const*, TerrorNavArea **, bool *);
+	// SDKCall(g_hSDKIsVisibleToPlayer, fTargetPos, i, 2, 3, 0.0, 0, pArea, true);
+	StartPrepSDKCall(SDKCall_Static);
+	if (!PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "IsVisibleToPlayer"))
+		SetFailState("Failed to find signature: IsVisibleToPlayer");
+	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);									// 目标点位
+	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer);								// 客户端
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);								// 客户端团队
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);								// 目标点位团队, 如果为0将考虑客户端的角度
+	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);										// 不清楚
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);								// 不清楚
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Pointer);							// 目标点位 NavArea 区域
+	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Pointer);									// 如果为 false，将自动获取目标点位的 NavArea (GetNearestNavArea)
+	PrepSDKCall_SetReturnInfo(SDKType_Bool, SDKPass_Plain);
+	g_hSDKIsVisibleToPlayer = EndPrepSDKCall();
+	if (g_hSDKIsVisibleToPlayer == null)
+		SetFailState("Failed to create SDKCall: IsVisibleToPlayer");
+
+	delete hGameData;
+}
+
 void BeginTankTracing(int client)
 {
 	g_iStuckTimes[client] = 0;
@@ -145,7 +179,7 @@ void GetCvars()
 }
 
 //判断该坐标是否可以看到生还或者距离小于300码
-bool PlayerVisibleTo(float spawnpos[3])
+stock bool PlayerVisibleTo(float spawnpos[3])
 {
 	float pos[3];
 	g_iSurvivorNum = 0;
@@ -165,7 +199,7 @@ bool PlayerVisibleTo(float spawnpos[3])
 	return false;
 }
 //判断从该坐标发射的射线是否击中目标
-bool PosIsVisibleTo(int client, const float targetposition[3])
+stock bool PosIsVisibleTo(int client, const float targetposition[3])
 {
 	float position[3], vAngles[3], vLookAt[3], spawnPos[3];
 	GetClientEyePosition(client, position);
@@ -185,7 +219,7 @@ bool PosIsVisibleTo(int client, const float targetposition[3])
 		else
 		{
 			spawnPos = targetposition;
-			spawnPos[2] += 40.0;
+			spawnPos[2] += 20.0;
 			MakeVectorFromPoints(spawnPos, position, vLookAt);
 			GetVectorAngles(vLookAt, vAngles);
 			Handle trace2 = TR_TraceRayFilterEx(spawnPos, vAngles, MASK_VISIBLE, RayType_Infinite, TraceFilter, client);
@@ -212,6 +246,48 @@ bool PosIsVisibleTo(int client, const float targetposition[3])
 	return isVisible;
 }
 
+//thanks fdxx https://github.com/fdxx/l4d2_plugins/blob/main/l4d2_si_spawn_control.sp
+stock bool PlayerVisibleToSDK(float targetposition[3], bool IsTeleport = false){
+	static float fTargetPos[3];
+
+	float position[3];
+	fTargetPos = targetposition;
+	fTargetPos[2] += 62.0; //眼睛位置
+	Address pArea = L4D_GetNearestNavArea(targetposition, 120.0, false, false, false, 3);
+
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client))
+		{
+			GetClientEyePosition(client, position);
+			//传送的时候无视倒地或者挂边生还者得实现
+			if(IsTeleport && IsClientIncapped(client)){
+				int sum = 0;
+				float temp[3];
+				for(int i = 1; i <= MaxClients; i++){
+					if(i != client && IsValidSurvivor(i) && !IsClientIncapped(i)){
+						GetClientAbsOrigin(i, temp);
+						//倒地生还者500范围内已经没有正常生还者，掠过这个人的视线判断
+						if(GetVectorDistance(temp, position) < 500.0){
+							sum ++;
+						}
+					}
+				}					
+			}
+			if(GetVectorDistance(targetposition, position) < 350.0)
+			{
+				return true;
+			}
+			if (SDKCall(g_hSDKIsVisibleToPlayer, fTargetPos, client, 2, 3, 0.0, 0, pArea, true))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 bool IsOnValidMesh(float fReferencePos[3])
 {
 	Address pNavArea = L4D2Direct_GetTerrorNavArea(fReferencePos);
@@ -232,26 +308,37 @@ bool IsPlayerStuck(float refpos[3], int client)
 	GetClientMaxs(client, client_maxs);
 	CopyVectors(refpos, up_hull_endpos);
 	up_hull_endpos[2] += 92.0;
-	TR_TraceHullFilter(refpos, up_hull_endpos, client_mins, client_maxs, MASK_NPCSOLID_BRUSHONLY, TR_EntityFilter);
+	TR_TraceHullFilter(refpos, up_hull_endpos, client_mins, client_maxs, MASK_PLAYERSOLID, TraceFilter_Stuck);
 	stuck = TR_DidHit();
 	return stuck;
 }
-bool TR_EntityFilter(int entity, int mask)
+
+
+stock bool TraceFilter_Stuck(int entity, int contentsMask)
 {
-	if (entity <= MaxClients)
+	if (entity <= MaxClients || !IsValidEntity(entity))
 	{
 		return false;
 	}
-	else if (entity > MaxClients)
-	{
-		char classname[16] = '\0';
-		GetEdictClassname(entity, classname, sizeof(classname));
-		if (strcmp(classname, "infected") == 0 || strcmp(classname, "witch") == 0 || strcmp(classname, "prop_physics") == 0 || strcmp(classname, "tank_rock") == 0)
-		{
+	else{
+		static char sClassName[20];
+		GetEntityClassname(entity, sClassName, sizeof(sClassName));
+		if (strcmp(sClassName, "env_physics_blocker") == 0 && !EnvBlockType(entity)){
 			return false;
 		}
 	}
 	return true;
+}
+
+stock bool EnvBlockType(int entity){
+	int BlockType = GetEntProp(entity, Prop_Data, "m_nBlockType");
+	//阻拦ai infected
+	if(BlockType == 1 || BlockType == 2){
+		return false;
+	}
+	else{
+		return true;
+	}
 }
 
 public void TeleportTank(int client){
@@ -275,7 +362,7 @@ public void TeleportTank(int client){
 			fSpawnPos[2] = GetRandomFloat(fSurvivorPos[2], fMaxs[2]);
 			int count2=0;
 			//PrintToConsoleAll("Tank找位置传送中.");
-			while (PlayerVisibleTo(fSpawnPos) || !IsOnValidMesh(fSpawnPos)|| IsPlayerStuck(fSpawnPos,client))
+			while (PlayerVisibleToSDK(fSpawnPos, true) || !IsOnValidMesh(fSpawnPos)|| IsPlayerStuck(fSpawnPos,client))
 			{
 				count2 ++;
 				if(count2 > 50)
@@ -285,14 +372,14 @@ public void TeleportTank(int client){
 				fSpawnPos[0] = GetRandomFloat(fMins[0], fMaxs[0]);
 				fSpawnPos[1] = GetRandomFloat(fMins[1], fMaxs[1]);
 				fSpawnPos[2] = GetRandomFloat(fSurvivorPos[2], fMaxs[2]);
-				TR_TraceRay(fSpawnPos, fDirection, MASK_NPCSOLID_BRUSHONLY, RayType_Infinite);
+				TR_TraceRay(fSpawnPos, fDirection, MASK_PLAYERSOLID, RayType_Infinite);
 				if(TR_DidHit())
 				{
 					TR_GetEndPosition(fEndPos);
 					if(!IsOnValidMesh(fEndPos))
 					{
 						fSpawnPos[2] = fSurvivorPos[2] + 20.0;
-						TR_TraceRay(fSpawnPos, fDirection, MASK_NPCSOLID_BRUSHONLY, RayType_Infinite);
+						TR_TraceRay(fSpawnPos, fDirection, MASK_PLAYERSOLID, RayType_Infinite);
 						if(TR_DidHit())
 						{
 							TR_GetEndPosition(fEndPos);
@@ -316,16 +403,17 @@ public void TeleportTank(int client){
 					{
 						GetClientEyePosition(index, fSurvivorPos);
 						fSurvivorPos[2] -= 60.0;
-						Address p1 = L4D_GetNearestNavArea(fSpawnPos, 120, false, false, false, 3);
-						Address p2 = L4D_GetNearestNavArea(fSurvivorPos, 120, false, false, false, 3);
+						Address p1 = L4D_GetNearestNavArea(fSpawnPos, 120.0, false, false, false, 3);
+						Address p2 = L4D_GetNearestNavArea(fSurvivorPos, 120.0, false, false, false, 3);
 						if (L4D2_NavAreaBuildPath(p1, p2, 1200.0, 3, false))
 						{
 							//把tank传送高度稍微提高防止卡住
-							fSpawnPos[2] += 20.0;
+							//fSpawnPos[2] += 20.0;
 							TeleportEntity(client, fSpawnPos, NULL_VECTOR, NULL_VECTOR);
 							int newtarget = GetClosetMobileSurvivor(client);
 							if (IsValidSurvivor(newtarget))
 							{
+								Logic_RunScript(COMMANDABOT_RESET, GetClientUserId(client), GetClientUserId(newtarget));
 								Logic_RunScript(COMMANDABOT_ATTACK, GetClientUserId(client), GetClientUserId(newtarget));
 							}
 							PrintHintTextToAll("请注意，Tank被卡住了开始传送到生还者附近.");
@@ -375,10 +463,12 @@ void ResetClientStat(int client)
 public Action Event_RoundStart(Event hEvent, const char[] name, bool dontBroadcast) 
 {
 	OnMapStart();
+	return Plugin_Continue;
 }
 public Action Event_RoundEnd(Event hEvent, const char[] name, bool dontBroadcast) 
 {
 	OnMapEnd();
+	return Plugin_Continue;
 }
 public void Event_PlayerDisconnect(Event hEvent, const char[] name, bool dontBroadcast) 
 {
@@ -386,6 +476,7 @@ public void Event_PlayerDisconnect(Event hEvent, const char[] name, bool dontBro
 }
 public Action Timer_UpdateTankCount(Handle timer) {
 	UpdateTankCount();
+	return Plugin_Continue;
 }
 
 void UpdateTankCount() {
