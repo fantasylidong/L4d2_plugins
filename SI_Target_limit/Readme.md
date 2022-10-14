@@ -1,2 +1,3 @@
-功能：服务器位置修改插件
-使用!slots修改服务器插件位置，如果超过4人，会自动删除大厅，服务器过关会自动重新设置slots设置的值
+功能：自动或者手动修改一个生还者被特感选为目标的上限
+SI_Target_limit插件为根据l4d_target_override插件打造的新版的插件（需要l4d_target_override 1.22版本以上）
+SI_Target_limit_old插件为根据游戏原始chooseTarget功能打造的插件（局限性很大，如果有l4d_target_override，不建议用)

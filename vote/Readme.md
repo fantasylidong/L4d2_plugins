@@ -1,0 +1,2 @@
+功能：投票执行cfg文件或者命令
+需要left4dhooks，需要builtinvotes扩展，cfgs.txt放到addons/sourcemod/config/文件夹里
