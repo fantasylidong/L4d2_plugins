@@ -14,6 +14,7 @@ enum L4D2Team
 };
 
 new bool:readyUpIsAvailable;
+new bool:l4dstatsIsAvailable;
 new Handle:sv_mincmdrate;
 new Handle:sv_maxcmdrate;
 new Handle:sv_minupdaterate;
@@ -46,7 +47,8 @@ public OnPluginStart()
     sv_maxrate = FindConVar("sv_maxrate");
     sv_client_min_interp_ratio = FindConVar("sv_client_min_interp_ratio");
     sv_client_max_interp_ratio = FindConVar("sv_client_max_interp_ratio");
-	RegConsoleCmd("sm_rates", SetRates, "当你分数大于30w可以手动输入这个指令来设置旁观100tick");
+    RegConsoleCmd("sm_specrates", SetRates, "当你分数大于30w可以手动输入这个指令来设置旁观100tick");
+    RegAdminCmd("sm_adminrates", AdminSetRates, ADMFLAG_GENERIC, "管理员手动提升100tick");
     HookEvent("player_team", OnTeamChange);
 }
 
@@ -54,11 +56,23 @@ public Action SetRates(int client, int args)
 { 
 	if(!IsValidClient(client))
 		return Plugin_Continue;
-	if(l4dstats_GetClientScore(client) < 300000)
+	if(l4dstatsIsAvailable && l4dstats_GetClientScore(client) < 300000 )
 	{
 		PrintToChat(client, "你的分数小于30W，无法设置旁观速率");
 		return Plugin_Handled;
 	}
+	if( getSpecNum() > 4)
+	{
+		PrintToChat(client, "旁观超过4人无法设置100tick旁观速率");
+		return Plugin_Handled;
+	}
+	AdjustRates(client);
+	return Plugin_Continue;	
+}
+public Action AdminSetRates(int client, int args)
+{ 
+	if(!IsValidClient(client))
+		return Plugin_Continue;
 	AdjustRates(client);
 	return Plugin_Continue;	
 }
@@ -107,8 +121,26 @@ public OnConfigsExecuted()
 
 public OnClientPutInServer(client)
 {
-    fLastAdjusted[client] = 0.0;
+	fLastAdjusted[client] = 0.0;
+	if(getSpecNum() > 4){
+		for(int i = 1; i <= MaxClients; i++){
+			if(IsValidClient(i) && IsClientInGame(i) && GetClientTeam(i) == 1 && GetUserAdmin(i) == INVALID_ADMIN_ID){
+				SetSpectatorRates(i);
+			}
+    	}
+    }
 }
+
+stock int getSpecNum(){
+    int count = 0;
+    for(int i = 1; i <= MaxClients; i++){
+        if(IsValidClient(i) && IsClientInGame(i) && GetClientTeam(i) == 3){
+            count ++;
+        }
+    }
+    return count;
+}
+
 
 public OnTeamChange(Handle:event, String:name[], bool:dontBroadcast)
 {
@@ -137,7 +169,7 @@ AdjustRates(client)
         fLastAdjusted[client] = GetEngineTime();
 
         new L4D2Team:team = L4D2Team:GetClientTeam(client);
-        if (team == L4D2Team_Survivor || team == L4D2Team_Infected || (readyUpIsAvailable && IsClientCaster(client)) || l4dstats_GetClientScore(client) >= 300000 || GetUserAdmin(client) != INVALID_ADMIN_ID)
+        if (team == L4D2Team_Survivor || team == L4D2Team_Infected || (readyUpIsAvailable && IsClientCaster(client)) || (l4dstatsIsAvailable && l4dstats_GetClientScore(client) >= 300000) || GetUserAdmin(client) != INVALID_ADMIN_ID)
         {
             ResetRates(client);
         }

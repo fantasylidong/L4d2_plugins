@@ -16,10 +16,10 @@ enum AimType
 public Plugin myinfo = 
 {
 	name 			= "Ai_Jockey增强",
-	author 			= "Breezy，High Cookie，Standalone，Newteee，cravenge，Harry，Sorallll，PaimonQwQ，夜羽真白",
+	author 			= "Breezy，High Cookie，Standalone，Newteee，cravenge，Harry，Sorallll，PaimonQwQ，夜羽真白, 东",
 	description 	= "觉得Ai猴子太弱了？ Try this！",
-	version 		= "2022/5/2",
-	url 			= "https://steamcommunity.com/id/saku_ra/"
+	version 		= "2022/11/1",
+	url 			= "https://github.com/fantasylidong/CompetitiveWithAnne"
 }
 
 // ConVars
@@ -27,7 +27,7 @@ ConVar g_hBhopSpeed, g_hStartHopDistance, g_hJockeyStumbleRadius;
 // Ints
 int g_iStartHopDistance, g_iState[MAXPLAYERS + 1][8], g_iJockeyStumbleRadius;
 // Float
-float g_fJockeyBhopSpeed;
+float g_fJockeyBhopSpeed, g_fDelay[MAXPLAYERS + 1][8];
 // Bools
 bool g_bHasBeenShoved[MAXPLAYERS + 1], g_bCanLeap[MAXPLAYERS + 1];
 
@@ -35,6 +35,11 @@ bool g_bHasBeenShoved[MAXPLAYERS + 1], g_bCanLeap[MAXPLAYERS + 1];
 #define TEAM_INFECTED 3
 #define ZC_JOCKEY 5
 #define FL_JUMPING 65922
+// JOCKEY
+#define JOCKEYJUMPDELAY 2.0
+#define JOCKEYJUMPNEARDELAY 0.1
+#define JOCKEYJUMPRANGE 250.0
+#define JOCKEYMINSPEED 130.0
 
 public void OnPluginStart()
 {
@@ -44,8 +49,8 @@ public void OnPluginStart()
 	// HookEvent
 	HookEvent("player_spawn", evt_PlayerSpawn, EventHookMode_Pre);
 	HookEvent("player_shoved", evt_PlayerShoved, EventHookMode_Pre);
-	HookEvent("player_jump", evt_PlayerJump, EventHookMode_Pre);
-	HookEvent("jockey_ride", evt_JockeyRide);
+	//HookEvent("player_jump", evt_PlayerJump, EventHookMode_Pre);
+	HookEvent("jockey_ride", evt_JockeyRide, EventHookMode_Pre);
 	// AddChangeHook
 	g_hBhopSpeed.AddChangeHook(ConVarChanged_Cvars);
 	g_hStartHopDistance.AddChangeHook(ConVarChanged_Cvars);
@@ -72,6 +77,8 @@ public Action OnPlayerRunCmd(int jockey, int &buttons, int &impulse, float vel[3
 	{
 		if(GetEntPropEnt(jockey, Prop_Send, "m_jockeyVictim") > 0)
 			return Plugin_Continue;
+		if (L4D_IsPlayerStaggering(jockey))
+			return Plugin_Continue;
 		float fSpeed[3] = {0.0}, fCurrentSpeed, fJockeyPos[3] = {0.0};
 		GetEntPropVector(jockey, Prop_Data, "m_vecVelocity", fSpeed);
 		fCurrentSpeed = SquareRoot(Pow(fSpeed[0], 2.0) + Pow(fSpeed[1], 2.0));
@@ -85,11 +92,11 @@ public Action OnPlayerRunCmd(int jockey, int &buttons, int &impulse, float vel[3
 			float fBuffer[3] = {0.0}, fTargetPos[3] = {0.0}, fDistance = NearestSurvivorDistance(jockey);
 			GetClientAbsOrigin(iTarget, fTargetPos);
 			fBuffer = UpdatePosition(jockey, iTarget, g_fJockeyBhopSpeed);
-			if (fCurrentSpeed > 130.0 && fDistance < float(g_iStartHopDistance))
+			if (fCurrentSpeed > JOCKEYMINSPEED && fDistance < float(g_iStartHopDistance))
 			{
 				if (iFlags & FL_ONGROUND)
 				{
-					if (fDistance < 250.0)
+					if (fDistance < JOCKEYJUMPRANGE && DelayExpired(jockey, 0, JOCKEYJUMPNEARDELAY) || DelayExpired(jockey, 0, JOCKEYJUMPDELAY))
 					{
 						// 在地上的情况，首先 GetState 如果状态不是跳跃状态，则按跳跃键，设置为跳跃状态，如果在地上且是跳跃状态，且目标正在看着 jockey，则向上 50 度抬起视野再攻击，设置状态为攻击
 						if (GetState(jockey, 0) == IN_JUMP)
@@ -124,7 +131,11 @@ public Action OnPlayerRunCmd(int jockey, int &buttons, int &impulse, float vel[3
 								}
 							}
 							SetState(jockey, 0, IN_JUMP);
+							int fLeapCooldown = GetConVarInt(FindConVar("z_jockey_leap_again_timer"));
+							CreateTimer(float(fLeapCooldown), Timer_LeapCoolDown, jockey, TIMER_FLAG_NO_MAPCHANGE);
 						}
+						DelayStart(jockey, 0);
+						return Plugin_Changed;
 					}
 					else
 					{
@@ -190,11 +201,12 @@ public Action Timer_LeapCoolDown(Handle timer, int jockey)
 {
 	g_bHasBeenShoved[jockey] = false;
 	g_bCanLeap[jockey] = true;
+	return Plugin_Continue;
 }
 
 public void evt_JockeyRide(Event event, const char[] name, bool dontBroadcast)
 {
-	if (IsCoop)
+	if (IsCoop())
 	{
 		int attacker = GetClientOfUserId(event.GetInt("userid"));
 		int victim = GetClientOfUserId(event.GetInt("victim"));
@@ -234,6 +246,7 @@ void StumbleByStanders(int pinnedSurvivor, int pinner)
 		} 
 	}
 }
+
 
 bool IsPinned(int client)
 {
@@ -373,4 +386,14 @@ void ClientPush(int client, float fForwardVec[3])
 	GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", fCurVelVec);
 	AddVectors(fCurVelVec, fForwardVec, fCurVelVec);
 	TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, fCurVelVec);
+}
+
+void DelayStart(int client, int number)
+{
+	g_fDelay[client][number] = GetGameTime();
+}
+
+bool DelayExpired(int client, int number, float delay)
+{
+	return view_as<bool>(GetGameTime() - g_fDelay[client][number] > delay);
 }

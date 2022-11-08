@@ -1,45 +1,92 @@
 #pragma semicolon 1
+#pragma newdecls required
 
 #include <sourcemod>
 #include <builtinvotes>
 #include <colors>
+#undef REQUIRE_PLUGIN
+#include <sourcebanspp>
+#include <l4dstats>
 
-public Plugin:myinfo =
+bool g_bSourceBansSystemAvailable = false, g_bl4dstatsSystemAvailable = false;
+public void OnAllPluginsLoaded(){
+	g_bSourceBansSystemAvailable = LibraryExists("sourcebans++");
+	g_bl4dstatsSystemAvailable = LibraryExists("l4d_stats");
+}
+public void OnLibraryAdded(const char[] name)
+{
+    if ( StrEqual(name, "sourcebans++") ) { g_bSourceBansSystemAvailable = true; }
+	else if ( StrEqual(name, "l4d_stats") ) { g_bl4dstatsSystemAvailable = true; }
+}
+public void OnLibraryRemoved(const char[] name)
+{
+    if ( StrEqual(name, "sourcebans++") ) { g_bSourceBansSystemAvailable = true; }
+	else if ( StrEqual(name, "l4d_stats") ) { g_bl4dstatsSystemAvailable = true; }
+}
+
+public Plugin myinfo =
 {
 	name = "Vote for run command or cfg file",
 	description = "使用!vote投票执行命令或cfg文件",
 	author = "东",
-	version = "1.2",
+	version = "1.3",
 	url = "https://github.com/fantasylidong/"
 };
 /*
 1.0 版本 初始发布
 1.1 版本 限制旁观使用投票功能
 1.2 版本 旁观不参与投票
+1.3 版本 增加Cvar控制投票文件, 1.11新语法, 增加sourcebans 1天封禁投票[分数大于300000]
 */
 
 Handle
 	g_hVote,
-	g_hVoteKick,	
+	g_hVoteKick,
+	g_hVoteBan,	
 	g_hCfgsKV;
+
+ConVar
+	g_hVoteFilelocation;
 
 char
 	g_sCfg[128],
-	g_skickplayername[128];
+	g_sVoteFile[128];
+
+int 
+	banclient,
+	kickclient,
+	voteclient;
 
 
-public OnPluginStart()
+
+public void OnPluginStart()
 {
 	char g_sBuffer[128];
-	GetGameFolderName(g_sBuffer, sizeof(g_sBuffer));
+	g_hVoteFilelocation = CreateConVar("votecfgfile", "configs/cfgs.txt", "投票文件的位置(位于sourcemod/文件夹)", FCVAR_NOTIFY);
+	//GetGameFolderName(g_sBuffer, sizeof(g_sBuffer));
+	GetConVarString(g_hVoteFilelocation, g_sVoteFile, sizeof(g_sVoteFile));
 	RegConsoleCmd("sm_vote", VoteRequest);
 	RegConsoleCmd("sm_votekick", KickRequest);
+	RegConsoleCmd("sm_voteban", BanRequest);
 	RegAdminCmd("sm_cancelvote", VoteCancle, ADMFLAG_GENERIC, "管理员终止此次投票", "", 0);
+	g_hVoteFilelocation.AddChangeHook(FileLocationChanged);
 	g_hCfgsKV = CreateKeyValues("Cfgs", "", "");
-	BuildPath(Path_SM, g_sBuffer, 128, "configs/cfgs.txt");
+	BuildPath(Path_SM, g_sBuffer, 128, g_sVoteFile);
 	if (!FileToKeyValues(g_hCfgsKV, g_sBuffer))
 	{
-		SetFailState("无法加载cfgs.txt文件!");
+		SetFailState("无法加载%s文件!", g_sVoteFile);
+	}
+}
+
+public void FileLocationChanged(ConVar convar, const char[] oldValue, const char[] newValue){
+	char g_sBuffer[128];
+	GetConVarString(g_hVoteFilelocation, g_sVoteFile, sizeof(g_sVoteFile));
+	//GetGameFolderName(g_sBuffer, sizeof(g_sBuffer));
+	g_hCfgsKV = CreateKeyValues("Cfgs", "", "");
+	BuildPath(Path_SM, g_sBuffer, 128, g_sVoteFile);
+	if (!FileToKeyValues(g_hCfgsKV, g_sBuffer))
+	{
+		SetFailState("无法加载%s文件!", g_sVoteFile);
 	}
 }
 
@@ -215,22 +262,7 @@ bool StartVote(int client, char[] cfgname)
 {
 	if (!IsBuiltinVoteInProgress())
 	{
-		new iNumPlayers;
-		decl iPlayers[MaxClients];
-		new i = 1;
-		while (i <= MaxClients)
-		{
-			if (!IsClientInGame(i) || IsFakeClient(i))
-			{
-			}
-			else
-			{
-				iNumPlayers++;
-				iPlayers[iNumPlayers] = i;
-			}
-			i++;
-		}
-		new String:sBuffer[64];
+		char sBuffer[64];
 		g_hVote = CreateBuiltinVote(VoteActionHandler, BuiltinVoteType_Custom_YesNo, BUILTINVOTE_ACTIONS_DEFAULT);
 		Format(sBuffer, 64, "执行 '%s' ?", cfgname);
 		SetBuiltinVoteArgument(g_hVote, sBuffer);
@@ -255,7 +287,7 @@ public void VoteActionHandler(Handle vote, BuiltinVoteAction action, int param1,
 		}
 		case BuiltinVoteAction_Cancel:
 		{
-			DisplayBuiltinVoteFail(vote, BuiltinVoteFailReason:param1);
+			DisplayBuiltinVoteFail(vote, view_as<BuiltinVoteFailReason>(param1));
 		}
 	}
 }
@@ -277,8 +309,18 @@ public void VoteResultHandler(Handle vote, int num_votes, int num_clients, const
 				if (g_hVoteKick == vote)
 				{
 					DisplayBuiltinVotePass(vote, "投票已完成...");
-					ServerCommand("sm_kick %s 投票踢出", g_skickplayername);
+					KickClient(kickclient, "投票踢出");
 					return;
+				}
+				if (g_hVoteBan == vote)
+				{
+					DisplayBuiltinVotePass(vote, "投票已完成...");
+					if(g_bSourceBansSystemAvailable){
+						SBPP_BanPlayer(voteclient, banclient, 1440, "投票封禁");
+					}else
+					{
+						BanClient(banclient,  1440, ADMFLAG_BAN, "投票封禁", "你已被当前服务器踢出，原因为投票封禁");
+					}
 				}
 			}
 		}
@@ -296,7 +338,7 @@ public Action KickRequest(int client, int args)
 	return Plugin_Handled;
 }
 
-void CreateVotekickMenu(client)
+void CreateVotekickMenu(int client)
 {
 	Handle menu = CreateMenu(Menu_Voteskick, MENU_ACTIONS_DEFAULT);
 	char name[126];
@@ -326,8 +368,8 @@ public int Menu_Voteskick(Handle menu, MenuAction action, int param1, int param2
 	{
 		char name[128];
 		GetMenuItem(menu, param2, name, sizeof(name));
-		g_skickplayername = name;
-		CPrintToChatAll("[{olive}vote{default}] {blue}%N {default}发起投票踢出 {blue} %s", param1, g_skickplayername);
+		kickclient = GetClientOfUserId(StringToInt(name));
+		CPrintToChatAll("[{olive}vote{default}] {blue}%N {default}发起投票踢出 {blue} %N", param1, kickclient);
 		if (DisplayVoteKickMenu(param1))
 		{
 			FakeClientCommand(param1, "Vote Yes");
@@ -336,19 +378,93 @@ public int Menu_Voteskick(Handle menu, MenuAction action, int param1, int param2
 	return 0;
 }
 
-public bool DisplayVoteKickMenu(client)
+public bool DisplayVoteKickMenu(int client)
+{
+	if (!IsBuiltinVoteInProgress())
+	{
+		char sBuffer[128];
+		g_hVoteKick = CreateBuiltinVote(VoteActionHandler, BuiltinVoteType_Custom_YesNo, BUILTINVOTE_ACTIONS_DEFAULT);
+		Format(sBuffer, 128, "踢出 '%N' ?", kickclient);
+		SetBuiltinVoteArgument(g_hVoteKick, sBuffer);
+		SetBuiltinVoteInitiator(g_hVoteKick, client);
+		SetBuiltinVoteResultCallback(g_hVoteKick, VoteResultHandler);
+		DisplayBuiltinVoteToAllNonSpectators(g_hVoteKick, 10);
+		CPrintToChatAll("[{olive}vote{default}] {blue}%N 发起了一个投票", client);
+		return true;
+	}
+	CPrintToChat(client, "[{olive}vote{default}] {red}已经有一个投票正在进行.");
+	return false;
+}
+
+public Action BanRequest(int client, int args)
+{
+	if(g_bl4dstatsSystemAvailable){
+		if(l4dstats_GetClientScore(client) < 100000){
+			CPrintToChat(client, "[{olive}vote{default}] {red}未防止封禁被乱用，需要10w以上积分玩家才能使用.");
+			return Plugin_Handled;
+		}else{
+			CPrintToChat(client, "[{olive}vote{default}] {red}请谨慎使用您的权力，乱用封禁会导致您的账户面临封禁（首次7天，第二次一个月，第三次永久）.");
+		}
+	}
+	if (client && client <= MaxClients)
+	{
+		CreateVoteBanMenu(client);
+		return Plugin_Handled;
+	}
+	return Plugin_Handled;
+}
+
+void CreateVoteBanMenu(int client)
+{
+	Handle menu = CreateMenu(Menu_VotesBan, MENU_ACTIONS_DEFAULT);
+	char name[126];
+	char info[128];
+	char playerid[128];
+	SetMenuTitle(menu, "选择封禁玩家");
+	int i = 1;
+	while (i <= MaxClients)
+	{
+		if (IsClientInGame(i) && !IsFakeClient(i))
+		{
+			Format(playerid, sizeof(playerid), "%i", GetClientUserId(i));
+			if (GetClientName(i, name, sizeof(name)))
+			{
+				Format(info, sizeof(info), "%s", name);
+				AddMenuItem(menu, playerid, info, ITEMDRAW_DEFAULT);
+			}
+		}
+		i++;
+	}
+	DisplayMenu(menu, client, 30);
+}
+
+public int Menu_VotesBan(Handle menu, MenuAction action, int param1, int param2)
+{
+	if (action == MenuAction_Select)
+	{
+		char name[128];
+		GetMenuItem(menu, param2, name, sizeof(name));
+		banclient = GetClientOfUserId(StringToInt(name));
+		CPrintToChatAll("[{olive}vote{default}] {blue}%N {default}发起投票封禁 {blue} %N 一天", param1, banclient);
+		voteclient = param1;
+		if (DisplayVoteBanMenu(param1))
+		{
+			FakeClientCommand(param1, "Vote Yes");
+		}
+	}
+	return 0;
+}
+
+public bool DisplayVoteBanMenu(int client)
 {
 	if (!IsBuiltinVoteInProgress())
 	{
 		int iNumPlayers;
 		int iPlayers[MAXPLAYERS];
 		int i = 1;
-		while (i <= MAXPLAYERS)
+		while (i <= MaxClients)
 		{
-			if (!IsClientInGame(i) || IsFakeClient(i))
-			{
-			}
-			else
+			if(IsClientInGame(i) && !IsFakeClient(i))
 			{
 				iNumPlayers++;
 				iPlayers[iNumPlayers] = i;
@@ -356,12 +472,12 @@ public bool DisplayVoteKickMenu(client)
 			i++;
 		}
 		char sBuffer[128];
-		g_hVoteKick = CreateBuiltinVote(VoteActionHandler, BuiltinVoteType_Custom_YesNo, BUILTINVOTE_ACTIONS_DEFAULT);
-		Format(sBuffer, 128, "踢出 '%s' ?", g_skickplayername);
-		SetBuiltinVoteArgument(g_hVoteKick, sBuffer);
-		SetBuiltinVoteInitiator(g_hVoteKick, client);
-		SetBuiltinVoteResultCallback(g_hVoteKick, VoteResultHandler);
-		DisplayBuiltinVoteToAllNonSpectators(g_hVoteKick, 10);
+		g_hVoteBan = CreateBuiltinVote(VoteActionHandler, BuiltinVoteType_Custom_YesNo, BUILTINVOTE_ACTIONS_DEFAULT);
+		Format(sBuffer, 128, "封禁 '%N' 一天?", banclient);
+		SetBuiltinVoteArgument(g_hVoteBan, sBuffer);
+		SetBuiltinVoteInitiator(g_hVoteBan, client);
+		SetBuiltinVoteResultCallback(g_hVoteBan, VoteResultHandler);
+		DisplayBuiltinVoteToAll(g_hVoteBan, 10);
 		CPrintToChatAll("[{olive}vote{default}] {blue}%N 发起了一个投票", client);
 		return true;
 	}

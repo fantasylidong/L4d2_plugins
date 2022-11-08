@@ -4,13 +4,13 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
-#include <l4dstats>
 #include <colors>
-#include <l4d_hats>
-#include <hextags>
 #undef REQUIRE_PLUGIN
+#include <l4dstats>
+#include <hextags>
+#include <l4d_hats>
 #include <godframecontrol>
-#define PLUGIN_VERSION "1.2"
+#define PLUGIN_VERSION "1.3"
 #define MAX_LINE_WIDTH 64
 
 // 进行 MySQL 连接相关变量
@@ -28,13 +28,14 @@ enum struct PlayerStruct{
 	CustomTags tags;
 }
 PlayerStruct player[MAXPLAYERS + 1];
-ConVar GaoJiRenJi;
 bool valid=true;
 bool IsStart=false;
 bool IsAllowBigGun = false;
+bool IsAnne = false;
 int InfectedNumber=6;
-ConVar AllowBigGun, g_InfectedNumber;
-bool g_bGodFrameSystemAvailable = false;
+bool g_bEnableGlow = true;
+ConVar GaoJiRenJi, AllowBigGun, g_InfectedNumber, g_cShopEnable, g_hEnableGlow;
+bool g_bGodFrameSystemAvailable = false, g_bHatSystemAvailable = false, g_bHextagsSystemAvailable = false, g_bl4dstatsSystemAvailable = false;
 //new lastpoints[MAXPLAYERS + 1];
 
 //枚举变量,修改武器消耗积分在此。
@@ -93,15 +94,17 @@ public Plugin myinfo =
 	version = PLUGIN_VERSION,
 	url = "http://sb.trygek.com:18443"
 }
-/*
+
+Handle IsValid;
 //Startup
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	//API
 	RegPluginLibrary("rpg");
-	CreateNative("rpg_HaveOwnTags", Native_HaveOwnTags);
+	IsValid = CreateGlobalForward("OnValidValveChange", ET_Ignore, Param_Cell);
+	return APLRes_Success;
 }
-
+/*
 //API
 public int Native_HaveOwnTags(Handle plugin, int numParams)
 {
@@ -120,14 +123,23 @@ public bool IsValidClient(int client)
 
 public void OnAllPluginsLoaded(){
 	g_bGodFrameSystemAvailable = LibraryExists("l4d2_godframes_control_merge");
+	g_bHatSystemAvailable = LibraryExists("l4d_hats");
+	g_bl4dstatsSystemAvailable = LibraryExists("l4d_stats");
+	g_bHextagsSystemAvailable = LibraryExists("hextags");
 }
 public void OnLibraryAdded(const char[] name)
 {
     if ( StrEqual(name, "l4d2_godframes_control_merge") ) { g_bGodFrameSystemAvailable = true; }
+	else if ( StrEqual(name, "l4d_hats") ) { g_bHatSystemAvailable = true; }
+	else if ( StrEqual(name, "l4d_stats") ) { g_bl4dstatsSystemAvailable = true; }
+	else if ( StrEqual(name, "hextags") ) { g_bHextagsSystemAvailable = true; }
 }
 public void OnLibraryRemoved(const char[] name)
 {
     if ( StrEqual(name, "l4d2_godframes_control_merge") ) { g_bGodFrameSystemAvailable = false; }
+	else if ( StrEqual(name, "l4d_hats") ) { g_bHatSystemAvailable = false; }
+	else if ( StrEqual(name, "l4d_stats") ) { g_bl4dstatsSystemAvailable = false; }
+	else if ( StrEqual(name, "hextags") ) { g_bHextagsSystemAvailable = false; }
 }
 
 //god frame send forward implement
@@ -173,15 +185,24 @@ public void  OnPluginStart()
 	HookEvent("player_spawn", 	Event_Player_Spawn);
 	HookEvent("mission_lost",EventMissionLost);
 	HookEvent("map_transition", EventMapChange);
-	HookEvent("player_afk", 	Event_PlayerAFK);
+	HookEvent("player_afk", 	Event_PlayerAFK, EventHookMode_Pre);
+	HookEvent("player_team", 	Event_PlayerDisconnectOrAFK, EventHookMode_Post);
 	//HookEvent("player_team", 	Event_PlayerTeam, EventHookMode_Pre);
+	g_cShopEnable =  CreateConVar("shop_enable", "0", "是否打开商店购买", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	AllowBigGun = CreateConVar("rpg_allow_biggun", "0", "商店是否允许购买大枪", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	GaoJiRenJi=FindConVar("sb_fix_enabled");
-	InfectedNumber=GetConVarInt(FindConVar("l4d_infected_limit"));
-	g_InfectedNumber=FindConVar("l4d_infected_limit");
+	g_hEnableGlow = CreateConVar("rpg_allow_glow", "1", "商店是否打开轮廓", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	if(FindConVar("sb_fix_enabled"))
+		GaoJiRenJi=FindConVar("sb_fix_enabled");
+	if(FindConVar("l4d_infected_limit")){
+		IsAnne = true;
+		g_InfectedNumber=FindConVar("l4d_infected_limit");
+		InfectedNumber=GetConVarInt(g_InfectedNumber);
+	}
 	AllowBigGun.AddChangeHook(ConVarChanged_Cvars);
+	if(g_InfectedNumber != null)
 	g_InfectedNumber.AddChangeHook(ConVarChanged_Cvars);
-	GaoJiRenJi.AddChangeHook(ConVarChanged_Cvars);
+	if(GaoJiRenJi != null)
+		GaoJiRenJi.AddChangeHook(ConVarChanged_Cvars);
 	ReturnBlood = CreateConVar("ReturnBlood", "0", "回血模式");
 	RegConsoleCmd("sm_buy", BuyMenu, "打开购买菜单(只能在游戏中)");
 	RegConsoleCmd("sm_ammo", BuyAmmo, "快速买子弹");
@@ -217,16 +238,32 @@ public void OnConfigsExecuted()
 // *********************
 void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
 {
+	if(!IsAnne){
+		valid = false;
+		return;
+	}
+
 	if(IsStart)
-		{
-			PrintToChatAll("\x04[RANK]判断额外积分所需变量发生变化，此局无法获得额外积分");
-			valid=false;
-		}
-	InfectedNumber=GetConVarInt(FindConVar("l4d_infected_limit"));
-	if(AllowBigGun.IntValue)
-		IsAllowBigGun = true;
-	else
-		IsAllowBigGun = false;
+	{
+		PrintToChatAll("\x04[RANK]判断额外积分所需变量发生变化，此局无法获得额外积分, 过关也不奖励额外分数");
+		valid=false;
+		Call_StartForward(IsValid);//转发触发
+		Call_PushCell(false);//按顺序将参数push进forward传参列表里
+		Call_Finish();//转发结束
+	}
+	InfectedNumber = GetConVarInt(FindConVar("l4d_infected_limit"));
+	IsAllowBigGun = GetConVarBool(AllowBigGun);
+	g_bEnableGlow = GetConVarBool(g_hEnableGlow);
+}
+
+public void Event_PlayerDisconnectOrAFK( Event hEvent, const char[] sName, bool bDontBroadcast )
+{
+	int client = GetClientOfUserId( hEvent.GetInt( "userid" ));
+	int team = hEvent.GetInt( "team" );
+	bool disconnect = hEvent.GetBool( "disconnect" );
+	if(IsValidClient(client) && (team == 3 || disconnect)){
+		DisableGlow(client);
+	}
 }
 
 public void Event_PlayerAFK( Event hEvent, const char[] sName, bool bDontBroadcast )
@@ -260,7 +297,7 @@ public Action PlayerSpawnTimer( Handle hTimer, any UserID )
 	
 	if( GetClientTeam( client ) == 2 && IsPlayerGhost( client ) != true )
 	{
-		if(player[client].GlowType)
+		if(player[client].GlowType && g_bEnableGlow)
 			GetAura(client,player[client].GlowType);
 		if(player[client].ClientHat)
 			ServerCommand("sm_hatclient #%d %d", GetClientUserId(client), player[client].ClientHat);
@@ -282,7 +319,7 @@ public void Event_PlayerTeam(Event hEvent, const char[] name, bool dontBroadcast
 	int iTeam = hEvent.GetInt("team");
 	if( iTeam == 2 )
 	{
-		if(player[client].GlowType)
+		if(player[client].GlowType && g_bEnableGlow)
 			GetAura(client,player[client].GlowType);
 		if(player[client].ClientHat)
 			ServerCommand("sm_hatclient #%d %d", GetClientUserId(client), player[client].ClientHat);
@@ -315,7 +352,7 @@ public int IsPlayerIncap(int client)
 }
 
 public Action EventMapChange(Handle event, const char []name, bool dontBroadcast){
-	if(CheckAllMoney()&&valid)
+	if(CheckAllMoney() && valid && IsAnne)
 		RewardScore();
 	for(int i=1;i<MaxClients;i++){
 		player[i].ClientPoints=500;
@@ -328,6 +365,8 @@ public Action EventMapChange(Handle event, const char []name, bool dontBroadcast
 }
 
 public void RewardScore(){
+	if(!g_bl4dstatsSystemAvailable)
+		return;
 	char pluginsname[64];
 	int renji=0;
 	GetConVarString(FindConVar("sv_tags"), pluginsname, sizeof(pluginsname));
@@ -356,6 +395,8 @@ public void RewardScore(){
 }
 
 public void AddReward(int Score){
+	if(!g_bl4dstatsSystemAvailable)
+		return;
 	for(int i=1;i<MaxClients;i++){
 		if(IsSurvivor(i))
 			ClientMapChangeWithoutBuyReward(i,Score);
@@ -378,10 +419,6 @@ public Action EventMissionLost(Handle event, const char []name, bool dontBroadca
 
 public void EventReturnBlood(Handle event, const char []name, bool dontBroadcast){
 	int victim = GetClientOfUserId(GetEventInt(event, "userid", 0));
-	if(IsValidClient(victim)){
-		DisableGlow( victim );
-		DisableSkin( victim );
-	}
 	int attacker = GetClientOfUserId(GetEventInt(event, "attacker", 0));
 	int var2 = victim;
 	if (MaxClients >= var2 && 1 <= var2)
@@ -494,37 +531,6 @@ public Action CheckPlayer(Handle timer, int client)
 {
 	if(!IsValidClient(client))
 		return Plugin_Handled;
-	/*
-	bool change = false;
-	DumpAdminCache(AdminCache_Admins,true);
-	DumpAdminCache(AdminCache_Groups,true);
-	if(player[client].ClientHat)
-	{
-		if(GetUserAdmin(client) != INVALID_ADMIN_ID || l4dstats_IsTopPlayer(client,50) )
-		{
-		}
-		else
-		{
-			player[client].ClientHat = 0;
-			change = true;
-		}
-		
-	}
-	if(player[client].GlowType)
-	{
-		if(GetUserAdmin(client) != INVALID_ADMIN_ID || l4dstats_IsTopPlayer(client,20) )
-		{
-			
-		}
-		else
-		{
-			player[client].GlowType = 0;
-			change = true;
-		}
-	}
-	if(change)	
-		ClientSaveToFileSave(client);
-		*/
 	if(player[client].GlowType || player[client].ClientHat || player[client].SkinType)
 		SetPlayer(client);
 	return Plugin_Continue;
@@ -535,7 +541,7 @@ public void SetPlayer(int client)
 	if(IsValidClient(client) && GetClientTeam( client ) == 2 )
 	{
 		
-		if(player[client].GlowType)
+		if(player[client].GlowType && g_bEnableGlow)
 			GetAura(client,player[client].GlowType);
 		if(player[client].ClientHat)
 			ServerCommand("sm_hatclient #%d %d", GetClientUserId(client), player[client].ClientHat);
@@ -611,7 +617,7 @@ public Action Timer_AutoGive(Handle timer, any client)
 	return Plugin_Continue;
 }
 public void ClientMapChangeWithoutBuyReward(int Client,int RewordScore){
-	if(!IsValidClient(Client) || IsFakeClient(Client))
+	if(!IsValidClient(Client) || IsFakeClient(Client) || !g_bl4dstatsSystemAvailable)
 		return;
 	char query[255];
 	char SteamID[64];
@@ -636,7 +642,7 @@ public void ClientSaveToFileLoad(int Client)
 
 public void ClientSaveToFileCreate(int Client)
 {
-	if(!IsValidClient(Client) || IsFakeClient(Client))
+	if(!IsValidClient(Client) || IsFakeClient(Client) || !g_bl4dstatsSystemAvailable)
 	return;
 	char query[255];
 	char SteamID[64];
@@ -649,7 +655,7 @@ public void ClientSaveToFileCreate(int Client)
 
 public void ClientSaveToFileSave(int Client)
 {
-	if(!IsValidClient(Client) || IsFakeClient(Client))
+	if(!IsValidClient(Client) || IsFakeClient(Client) || !g_bl4dstatsSystemAvailable)
 		return;
 	char query[255];
 	char SteamID[64];
@@ -662,7 +668,7 @@ public void ClientSaveToFileSave(int Client)
 
 public void ClientTagsSaveToFileSave(int Client)
 {
-	if(!IsValidClient(Client) || IsFakeClient(Client))
+	if(!IsValidClient(Client) || IsFakeClient(Client) || !g_bl4dstatsSystemAvailable)
 		return;
 	char query[255];
 	char SteamID[64];
@@ -678,11 +684,14 @@ public void ClientTagsSaveToFileSave(int Client)
 //开局发近战能力武器
 public Action L4D_OnFirstSurvivorLeftSafeArea(int client)
 {
-	for(int i=1;i<MaxClients;i++)
-		if(IsSurvivor(i))
-		{
-			CreateTimer(0.5, Timer_AutoGive, i, TIMER_FLAG_NO_MAPCHANGE);
+	if(g_cShopEnable.BoolValue){
+		for(int i=1;i<MaxClients;i++){
+			if(IsSurvivor(i))
+			{
+				CreateTimer(0.5, Timer_AutoGive, i, TIMER_FLAG_NO_MAPCHANGE);
+			}
 		}
+	}
 	IsStart=true;
 	valid=true;
 	return Plugin_Stop;
@@ -732,7 +741,7 @@ public Action BuyMenu(int client,int args)
 //快速买子弹指令
 public Action BuyAmmo(int client,int args)
 {
-	if(IsVaildClient(client) && IsPlayerAlive(client)  )
+	if(IsVaildClient(client) && IsPlayerAlive(client) && g_cShopEnable.BoolValue)
 	{
     	GiveItems(client,"ammo");
     	PrintToChatAll("\x04%N \x03 补充了子弹",client);
@@ -743,7 +752,7 @@ public Action BuyAmmo(int client,int args)
 //快速买喷子指令
 public Action BuyPen(int client,int args)
 { 
-	if(IsVaildClient(client) && IsPlayerAlive(client)  )
+	if(IsVaildClient(client) && IsPlayerAlive(client) && g_cShopEnable.BoolValue)
 	{
 		if(player[client].ClientFirstBuy){
 			player[client].ClientFirstBuy=false;
@@ -773,7 +782,7 @@ public Action BuyPen(int client,int args)
 //快速买二代单喷指令
 public Action BuyChr(int client,int args)
 { 
-	if(IsVaildClient(client) && IsPlayerAlive(client)  )
+	if(IsVaildClient(client) && IsPlayerAlive(client) && g_cShopEnable.BoolValue)
 	{
 		if(player[client].ClientFirstBuy){
 			player[client].ClientFirstBuy=false;
@@ -793,7 +802,7 @@ public Action BuyChr(int client,int args)
 //快速买pump指令
 public Action BuyPum(int client,int args)
 { 
-	if(IsVaildClient(client) && IsPlayerAlive(client)  )
+	if(IsVaildClient(client) && IsPlayerAlive(client) && g_cShopEnable.BoolValue)
 	{
 		if(player[client].ClientFirstBuy){
 			player[client].ClientFirstBuy=false;
@@ -813,7 +822,7 @@ public Action BuyPum(int client,int args)
 //快速买机枪指令
 public Action BuySmg(int client,int args)
 { 
-	if(IsVaildClient(client) && IsPlayerAlive(client)  )
+	if(IsVaildClient(client) && IsPlayerAlive(client) && g_cShopEnable.BoolValue)
 	{ 
 		if(player[client].ClientFirstBuy){
 			player[client].ClientFirstBuy=false;
@@ -833,7 +842,7 @@ public Action BuySmg(int client,int args)
 //快速买uzi指令
 public Action BuyUzi(int client,int args)
 { 
-	if(IsVaildClient(client) && IsPlayerAlive(client)  )
+	if(IsVaildClient(client) && IsPlayerAlive(client) && g_cShopEnable.BoolValue)
 	{ 
 		if(player[client].ClientFirstBuy){
 			player[client].ClientFirstBuy=false;
@@ -846,6 +855,17 @@ public Action BuyUzi(int client,int args)
 		}else{
 			PrintToChat(client,"\x03没钱你买个屁机枪，心里没点B数");
 		}
+	}
+	return Plugin_Continue;
+}
+
+//快速买药指令
+public Action BuyPill(int client,int args)
+{ 
+	if(IsVaildClient(client) && IsPlayerAlive(client) && g_cShopEnable.BoolValue)
+	{
+		if(RemovePoints(client,400,"pain_pills"))
+		PrintToChatAll("\x04%N \x03快速花费400B数买了瓶药",client);
 	}
 	return Plugin_Continue;
 }
@@ -863,7 +883,10 @@ public Action ApplyTags(int client,int args)
 //设置称号指令
 public Action SetCH(int client,int args)
 { 
-	if(l4dstats_GetClientScore(client) < 500000)
+	if(!g_bl4dstatsSystemAvailable){
+		return Plugin_Handled;
+	}
+	if(g_bl4dstatsSystemAvailable && l4dstats_GetClientScore(client) < 500000 || !g_bl4dstatsSystemAvailable)
 	{
 		ReplyToCommand(client,"你得积分小于50w，不能自定义称号");
 		return Plugin_Handled;
@@ -907,17 +930,6 @@ public void SetTags(int client, char[] tagsname)
 	HexTags_SetClientTag(client, ChatColor, "{teamcolor}");
 	HexTags_SetClientTag(client, NameColor, "{lightgreen}");
     //ClientSaveToFileSave(client);
-}
-
-//快速买药指令
-public Action BuyPill(int client,int args)
-{ 
-	if(IsVaildClient(client) && IsPlayerAlive(client)  )
-	{
-		if(RemovePoints(client,400,"pain_pills"))
-		PrintToChatAll("\x04%N \x03快速花费400B数买了瓶药",client);
-	}
-	return Plugin_Continue;
 }
 
 public Action ResetBuy(Handle timer, int client)
@@ -1012,33 +1024,37 @@ public void BuildMenu(int client)
 		menu.SetTitle(binfo);
 
 		//FormatEx(binfo, sizeof(binfo),  "购买枪械", client);	//武器
-		FormatEx(binfo, sizeof(binfo), "购买枪械", client);
-		menu.AddItem("gun", binfo);
+		if(g_cShopEnable.BoolValue){
+			FormatEx(binfo, sizeof(binfo), "购买枪械", client);
+			menu.AddItem("gun", binfo);
 
-		FormatEx(binfo, sizeof(binfo),  "购买补给", client); //补给
-		menu.AddItem("supply", binfo);
+			FormatEx(binfo, sizeof(binfo),  "购买补给", client); //补给
+			menu.AddItem("supply", binfo);
 
-		FormatEx(binfo, sizeof(binfo),  "出门近战技能", client); //技能菜单
-		menu.AddItem("ability", binfo);
+			FormatEx(binfo, sizeof(binfo),  "出门近战技能", client); //技能菜单
+			menu.AddItem("ability", binfo);
+		}	
 		if (GetConVarBool(ReturnBlood)){
 			FormatEx(binfo, sizeof(binfo),  "回血技能", client); //技能菜单
 			menu.AddItem("Blood", binfo);
 		}
+		if(g_bHextagsSystemAvailable){
+			FormatEx(binfo, sizeof(binfo),  "称号菜单", client); //称号菜单
+			menu.AddItem("ChatTags", binfo);
+		}
 		
-		FormatEx(binfo, sizeof(binfo),  "称号菜单", client); //称号菜单
-		menu.AddItem("ChatTags", binfo);
-		
-		FormatEx(binfo, sizeof(binfo),  "帽子菜单", client); //帽子菜单
-		menu.AddItem("Hat", binfo);
+		if(g_bHatSystemAvailable){
+			FormatEx(binfo, sizeof(binfo),  "帽子菜单", client); //帽子菜单
+			menu.AddItem("Hat", binfo);
+		}
 
-		
-		if(l4dstats_IsTopPlayer(client,20)|| GetUserAdmin(client)!= INVALID_ADMIN_ID || player[client].GlowType > 0)
+		if((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,20)) && g_bEnableGlow || GetUserAdmin(client)!= INVALID_ADMIN_ID || player[client].GlowType > 0 || !g_bl4dstatsSystemAvailable)
 		{
 			FormatEx(binfo, sizeof(binfo),  "生还者轮廓", client); //生还者轮廓菜单
 			menu.AddItem("Survivor_glow", binfo);
 		}
 
-		if(l4dstats_IsTopPlayer(client,50)|| GetUserAdmin(client)!= INVALID_ADMIN_ID || player[client].SkinType > 0)
+		if((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,50))|| GetUserAdmin(client)!= INVALID_ADMIN_ID || player[client].SkinType > 0 || !g_bl4dstatsSystemAvailable)
 		{
 			FormatEx(binfo, sizeof(binfo),  "生还者皮肤", client); //生还者轮廓菜单
 			menu.AddItem("Survivor_skin", binfo);
@@ -1089,7 +1105,7 @@ public void Survivor_glow(int client)
 		Menu menu = new Menu(VIPAuraMenuHandler);
 		menu.SetTitle("生还者轮廓\n——————————");
 		menu.AddItem("option0", "关闭\n ", player[client].GlowType == 0 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
-		if(!(l4dstats_IsTopPlayer(client,20)|| GetUserAdmin(client)!= INVALID_ADMIN_ID)){
+		if(!((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,20)) || GetUserAdmin(client)!= INVALID_ADMIN_ID) || !g_bl4dstatsSystemAvailable){
 			menu.Display(client, MENU_TIME_FOREVER);
 			return;
 		}
@@ -1109,9 +1125,9 @@ public void Survivor_glow(int client)
 		menu.AddItem("option14", "白色", player[client].GlowType == 14 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		DumpAdminCache(AdminCache_Admins,true);
 		DumpAdminCache(AdminCache_Groups,true);
-		if(l4dstats_IsTopPlayer(client,3) || GetUserAdmin(client).ImmunityLevel == 100)
+		if((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,3)) || GetUserAdmin(client).ImmunityLevel == 100 || !g_bl4dstatsSystemAvailable)
 			menu.AddItem("option15", "金黄色", player[client].GlowType == 15 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
-		if(l4dstats_IsTopPlayer(client,1) || GetUserAdmin(client).ImmunityLevel == 100)
+		if((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,1)) || GetUserAdmin(client).ImmunityLevel == 100 || !g_bl4dstatsSystemAvailable)
 			menu.AddItem("option16", "彩虹色", player[client].GlowType == 16 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		
 		menu.ExitButton = true;
@@ -1285,7 +1301,7 @@ public void Survivor_skin(int client)
 		menu.SetTitle("生还者皮肤颜色\n——————————");
 
 		menu.AddItem("option0", "关闭\n ", player[client].SkinType == 0 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
-		if(!(l4dstats_IsTopPlayer(client,50)|| GetUserAdmin(client)!= INVALID_ADMIN_ID)){
+		if(!((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,50)) || GetUserAdmin(client)!= INVALID_ADMIN_ID) || !g_bl4dstatsSystemAvailable){
 			menu.Display(client, MENU_TIME_FOREVER);
 			return;
 		}
@@ -1302,13 +1318,13 @@ public void Survivor_skin(int client)
 		menu.AddItem("option11", "藍綠色", player[client].SkinType == 11 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		menu.AddItem("option12", "粉红色", player[client].SkinType == 12 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		menu.AddItem("option13", "紫色", player[client].SkinType == 13 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
-		if(l4dstats_IsTopPlayer(client,20))
+		if((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,20)) || !g_bl4dstatsSystemAvailable)
 			menu.AddItem("option14", "黑色", player[client].SkinType == 14 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		DumpAdminCache(AdminCache_Admins,true);
 		DumpAdminCache(AdminCache_Groups,true);
-		if(l4dstats_IsTopPlayer(client,3) || GetUserAdmin(client).ImmunityLevel == 100)
+		if(g_bl4dstatsSystemAvailable && (l4dstats_IsTopPlayer(client,3)) || GetUserAdmin(client).ImmunityLevel == 100 || !g_bl4dstatsSystemAvailable)
 			menu.AddItem("option15", "金黄色", player[client].SkinType == 15 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
-		if(l4dstats_IsTopPlayer(client,1)|| GetUserAdmin(client).ImmunityLevel == 100)
+		if((g_bl4dstatsSystemAvailable && l4dstats_IsTopPlayer(client,1)) || GetUserAdmin(client).ImmunityLevel == 100 || !g_bl4dstatsSystemAvailable)
 	    	menu.AddItem("option16", "透明色", player[client].SkinType == 16 ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		menu.ExitButton = true;
 		menu.Display(client, MENU_TIME_FOREVER);

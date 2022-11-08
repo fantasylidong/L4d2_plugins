@@ -33,11 +33,11 @@ public void OnPluginStart()
 {
 	// CreateConVar
 	g_hSpitterBhop = CreateConVar("ai_SpitterBhop", "1", "是否开启Spitter连跳", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	g_hSpitterBhopSpeed = CreateConVar("ai_SpitterBhopSpeed", "60.0", "Spitter连跳的速度", FCVAR_NOTIFY, true, 0.0);
+	g_hSpitterBhopSpeed = CreateConVar("ai_SpitterBhopSpeed", "90.0", "Spitter连跳的速度", FCVAR_NOTIFY, true, 0.0);
 	g_hSpitterStartBhopDistance = CreateConVar("ai_SpitterBhopStartBhopDistance", "2000.0", "Spitter在什么距离开始连跳", FCVAR_NOTIFY, true, 0.0);
 	g_hSpitterTarget = CreateConVar("ai_SpitterTarget", "3", "Spitter的目标选择：1=默认目标选择，2=多人的地方优先，3=被扑，撞，拉者优先（无3则2）", FCVAR_NOTIFY, true, 1.0, true, 3.0);
 	g_hInstantKill = CreateConVar("ai_SpitterInstantKill", "0", "Spitter吐完痰之后是否处死", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	g_hSpitterAirAngle = CreateConVar("ai_SpitterAirAngle", "60.0", "Spitter连跳时，其速度与到目标生还者向量方向超过这一角度，将会停止连跳", FCVAR_NOTIFY, true, 0.0);
+	g_hSpitterAirAngle = CreateConVar("ai_SpitterAirAngle", "55.0", "Spitter连跳时，其速度与到目标生还者向量方向超过这一角度，将会停止连跳", FCVAR_NOTIFY, true, 0.0);
 	// AddChangeHook
 	g_hSpitterBhop.AddChangeHook(ConVarChanged_Cvars);
 	g_hSpitterBhopSpeed.AddChangeHook(ConVarChanged_Cvars);
@@ -68,6 +68,8 @@ public Action OnPlayerRunCmd(int spitter, int &buttons, int &impulse, float vel[
 {
 	if (IsAiSpitter(spitter))
 	{
+		if (L4D_IsPlayerStaggering(spitter))
+			return Plugin_Continue;
 		// 跳着吐痰
 		if (buttons & IN_ATTACK)
 		{
@@ -156,6 +158,7 @@ public Action OnPlayerRunCmd(int spitter, int &buttons, int &impulse, float vel[
 public Action Timer_ForceSuicide(Handle timer, int client)
 {
 	ForcePlayerSuicide(client);
+	return Plugin_Continue;
 }
 
 // 目标选择
@@ -275,7 +278,7 @@ bool IsSurvivor(int client)
 	}
 }
 
-bool IsIncapped(int client)
+stock bool IsIncapped(int client)
 {
     return view_as<bool>(GetEntProp(client, Prop_Send, "m_isIncapacitated"));
 }
@@ -288,7 +291,7 @@ int GetCrowdPlace()
 	{
 		int index = 0, iTarget = 0;
 		int[] iSurvivors = new int[iCount];
-		float fDistance[MAXPLAYERS + 1] = -1.0;
+		float fDistance[MAXPLAYERS + 1] = {-1.0};
 		for (int client = 1; client <= MaxClients; client++)
 		{
 			if (IsValidClient(client) && GetClientTeam(client) == TEAM_SURVIVOR)
@@ -301,11 +304,11 @@ int GetCrowdPlace()
 			if (IsValidClient(client) && IsPlayerAlive(client) && GetClientTeam(client) == TEAM_SURVIVOR)
 			{
 				fDistance[client] = 0.0;
-				float fClientPos[3] = 0.0;
+				float fClientPos[3] = {0.0};
 				GetClientAbsOrigin(client, fClientPos);
 				for (int i = 0; i < iCount; i++)
 				{
-					float fPos[3] = 0.0;
+					float fPos[3] = {0.0};
 					GetClientAbsOrigin(iSurvivors[i], fPos);
 					fDistance[client] += GetVectorDistance(fClientPos, fPos, true);
 				}

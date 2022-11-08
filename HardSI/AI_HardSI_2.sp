@@ -100,13 +100,15 @@ void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newV
 public Action L4D_OnFirstSurvivorLeftSafeArea(int firstSurvivor) 
 {
 	CreateTimer( 0.3, Timer_ForceInfectedAssault, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE );
+	return Plugin_Continue;
 }
 
 public Action Timer_ForceInfectedAssault( Handle timer) 
 {
 	BypassAndExecuteCommand("nb_assault");
+	return Plugin_Continue;
 }
-public int BypassAndExecuteCommand(char []strCommand)
+public void BypassAndExecuteCommand(char []strCommand)
 {
 	int flags = GetCommandFlags(strCommand);
 	SetCommandFlags(strCommand, flags & ~ FCVAR_CHEAT);
@@ -228,7 +230,7 @@ public void UpdateThink(int client)
 // *********************
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
-	if (IsInfectedBot(client) && !IsGhost(client))
+	if (IsInfectedBot(client) && !IsGhost(client) && !L4D_IsPlayerStaggering(client))
 	{
 		int zombieclass = GetZombieClass(client);
 		Action react = Plugin_Continue;

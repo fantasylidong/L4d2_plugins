@@ -87,6 +87,8 @@ public Action OnPlayerRunCmd(int boomer, int &buttons, int &impulse, float vel[3
 {
 	if (IsAiBoomer(boomer))
 	{
+		if (L4D_IsPlayerStaggering(boomer))
+			return Plugin_Continue;
 		float fSpeed[3] = {0.0}, fCurrentSpeed = 0.0, fDistance = 0.0, fBoomerPos[3] = {0.0};
 		GetEntPropVector(boomer, Prop_Data, "m_vecVelocity", fSpeed);
 		fCurrentSpeed = SquareRoot(Pow(fSpeed[0], 2.0) + Pow(fSpeed[1], 2.0));
@@ -251,6 +253,7 @@ public Action evt_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	{
 		bCanVomit[client] = true;
 	}
+	return Plugin_Continue;
 }
 
 public void evt_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
@@ -266,6 +269,7 @@ public void evt_PlayerShoved(Event event, const char[] name, bool dontBroadcast)
 public Action Timer_VomitCoolDown(Handle timer, int client)
 {
 	bCanVomit[client] = true;
+	return Plugin_Continue;
 }
 
 public Action evt_AbilityUse(Event event, const char[] name, bool dontBroadcast)
@@ -275,6 +279,7 @@ public Action evt_AbilityUse(Event event, const char[] name, bool dontBroadcast)
 	{
 		Boomer_OnVomit(client);
 	}
+	return Plugin_Changed;
 }
 
 
@@ -292,8 +297,8 @@ public Action Unhook(Handle Timer, int client)
 	if( IsClientConnected( client ) != true || IsClientInGame(client) != true || IsPlayerAlive(client) != true || GetClientTeam( client ) != 3 )
 	{
 		SDKUnhook(client, SDKHook_PreThink, SpreadBoomer);	
-		return;
 	}
+	return Plugin_Continue;
 }
 //改变方向
 public Action SpreadBoomer(int client)
@@ -301,7 +306,7 @@ public Action SpreadBoomer(int client)
 	if( IsClientConnected( client ) != true || IsClientInGame(client) != true || IsPlayerAlive(client) != true || GetClientTeam( client ) != 3 )
 	{
 		SDKUnhook(client, SDKHook_PreThink, SpreadBoomer);	
-		return;
+		return Plugin_Continue;
 	}
 	static float fNearestAngles[3];
 	if (MakeNearestAngles(client, fNearestAngles))
@@ -310,6 +315,7 @@ public Action SpreadBoomer(int client)
 		fNearestAngles[0]-= 20;
 		TeleportEntity(client, NULL_VECTOR, fNearestAngles, NULL_VECTOR);
 	}
+	return Plugin_Changed;
 }
 
 /*
@@ -442,7 +448,7 @@ float NearestSurvivorDistance(int client)
 	return fDistance[0];
 }
 
-float UpdatePosition(int boomer, int target, float fForce)
+float[] UpdatePosition(int boomer, int target, float fForce)
 {
 	float fBuffer[3], fBoomerPos[3], fTargetPos[3];
 	GetClientAbsOrigin(boomer, fBoomerPos);	GetClientAbsOrigin(target, fTargetPos);

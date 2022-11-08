@@ -7,6 +7,7 @@
 #include <sdkhooks>
 #include <sdktools>
 #include <sourcemod>
+#undef REQUIRE_PLUGIN
 #include <l4dstats>
 
 #define MAXENTITIES 2048
@@ -35,7 +36,7 @@ float g_fItemHintCoolDown, g_fSpotMarkCoolDown, g_fInfectedMarkCoolDown,
 float       g_fItemHintCoolDownTime[MAXPLAYERS + 1], g_fSpotMarkCoolDownTime[MAXPLAYERS + 1], g_fInfectedMarkCoolDownTime[MAXPLAYERS + 1];
 static char g_sItemInstructorColor[12], g_sItemInstructorIcon[16], g_sSpotMarkCvarColor[12], g_sItemUseSound[100], g_sSpotMarkUseSound[100], g_sKillDelay[32],
 			g_sInfectedMarkUseSound[100], g_sSpotMarkInstructorColor[12], g_sSpotMarkInstructorIcon[16], g_sSpotMarkSpriteModel[PLATFORM_MAX_PATH];
-bool g_bItemInstructorHint, g_bSpotMarkInstructorHint, g_bInfectedMarkWitch;
+bool g_bItemInstructorHint, g_bSpotMarkInstructorHint, g_bInfectedMarkWitch, g_bl4dstatsAvailable = false;
 
 
 static bool   ge_bMoveUp[MAXENTITIES+1];
@@ -82,11 +83,21 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnAllPluginsLoaded()
 {
+	g_bl4dstatsAvailable = LibraryExists("l4d_stats");
 	// Use Priority Patch
 	if( FindConVar("l4d_use_priority_version") == null )
 	{
 		LogMessage("\n==========\nWarning: You should install \"[L4D & L4D2] Use Priority Patch\" to fix attached models blocking +USE action (item hint): https://forums.alliedmods.net/showthread.php?t=327511\n==========\n");
 	}
+}
+
+public void OnLibraryAdded(const char[] name)
+{
+    if ( StrEqual(name, "l4d_stats") ) { g_bl4dstatsAvailable = true; }
+}
+public void OnLibraryRemoved(const char[] name)
+{
+    if ( StrEqual(name, "l4d_stats") ) { g_bl4dstatsAvailable = false; }
 }
 
 public void OnPluginStart()
@@ -497,18 +508,17 @@ public void Event_WitchKilled(Event event, const char[] name, bool dontBroadcast
 public Action Vocalize_Listener(int client, const char[] command, int argc)
 {
 	if (IsRealSur(client) && !IsHandingFromLedge(client) && GetInfectedAttacker(client) == -1)
-	{
-		if(l4dstats_GetClientScore(client) < 50000)
-		{
-			PrintToChat(client, "\x01[\x04标记系统\x01]你的积分不足5w，无法使用标记系统");
-			return Plugin_Continue;
-		}
-			
+	{	
 		static char sCmdString[32];
 		if (GetCmdArgString(sCmdString, sizeof(sCmdString)) > 1)
 		{
 			if (strncmp(sCmdString, "smartlook #", 11, false) == 0)
 			{
+				if(g_bl4dstatsAvailable && l4dstats_GetClientScore(client) < 50000)
+				{
+					PrintToChat(client, "\x01[\x04标记系统\x01]你的积分不足5w，无法使用标记系统");
+					return Plugin_Continue;
+				}
 				int clientAim;
 				bool bIsAimInfeced = false, bIsAimWitch = false, bIsVaildItem = false;
 				static char sItemName[64], sEntModelName[PLATFORM_MAX_PATH];

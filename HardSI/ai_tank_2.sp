@@ -6,8 +6,8 @@
 #include <sdktools>
 #include <colors>
 #include <left4dhooks>
-//#include "vector/vector_show.sp"
-#include "treeutil.sp"
+#include <treeutil>
+
 
 #define CVAR_FLAG FCVAR_NOTIFY
 #define NAV_MESH_HEIGHT 20.0								// 有效 Nav 位置高度
@@ -19,19 +19,23 @@
 #define LAG_DETECT_TIME 2.0									// 坦克位置检测间隔
 #define LAG_DETECT_RAIDUS 100								// 坦克位置检测范围
 #define TREE_DETECT_TIME 1.5								// 绕树检测间隔
-#define VISION_UNLOCK_TIME 2								// 视角解锁间隔
 #define SPEED_FIXED_LENGTH 300.0							// 速度修正最大速度长度
 #define RAY_ANGLE view_as<float>({90.0, 0.0, 0.0})
 #define FL_JUMPING 65922
+#define ladderTotal 200
 #define DEBUG_ALL 0
+#if (DEBUG_ALL)
+int g_sprite;
+#include <vector_show>
+#endif
 
 public Plugin myinfo = 
 {
 	name 			= "Ai_Tank_Enhance2.0",
-	author 			= "夜羽真白",
+	author 			= "夜羽真白，东",
 	description 	= "Tank 增强插件 2.0 版本",
-	version 		= "2.0.0.0",
-	url 			= "https://steamcommunity.com/id/saku_ra/"
+	version 		= "2.0.1.0",
+	url 			= "https://github.com/fantasylidong/CompetitiveWithAnne"
 }
 
 enum struct struct_TankConsume
@@ -43,7 +47,6 @@ enum struct struct_TankConsume
 	bool bIsReachingRayPos;			// 是否正在前往射线找位的位置
 	bool bInConsumePlace;			// 是否在消耗位上
 	bool bHasRecordProgress;		// 是否记录生还者当前路程
-	bool bHasCreatePosTimer;		// 是否创建位置检测时钟
 	bool bCanLockVision;
 	// Ints
 	int iTreeTarget;				// 绕树目标
@@ -59,11 +62,10 @@ enum struct struct_TankConsume
 	float fTreeTargetPos[3];		// 绕树生还当前位置
 	float fFailedJumpedTime;		// 团灭嘲讽跳起来的时间戳
 	float fRockThrowTime;			// 扔石头的时间戳
-	float fLockVisonTime;			// 视角解锁时间戳
 	// 结构体变量初始化
 	void struct_Init()
 	{
-		this.bCanInitPos = this.bCanConsume = this.bIsReachingFunctionPos = this.bIsReachingRayPos = this.bInConsumePlace = this.bHasRecordProgress = this.bHasCreatePosTimer  = false;
+		this.bCanInitPos = this.bCanConsume = this.bIsReachingFunctionPos = this.bIsReachingRayPos = this.bInConsumePlace = this.bHasRecordProgress = false;
 		this.iTreeTarget = this.iConsumeSurPercent = this.iConsumeNum = this.iIncappedCount = 0;
 		this.fTreeTime = this.fFailedJumpedTime = this.fRockThrowTime = 0.0;
 		this.fTankStopDistance = 0.0;
@@ -89,6 +91,15 @@ stock void ConsumePosInit(int client, bool function_pos = true, bool ray_pos = t
 		eTankStructure[client].fRayConsumePos[0] = eTankStructure[client].fRayConsumePos[1] = eTankStructure[client].fRayConsumePos[2] = 0.0;
 	}
 }
+enum struct ladder_info{
+	int entityid;
+	float origin[3];
+	float position[3];
+	float normal[3];
+	float angles[3];
+}
+ladder_info ladder[ladderTotal];
+int ladderNum = 0;
 
 // ConVars
 ConVar g_hAllowBhop, g_hBhopSpeed, g_hAirAngleRestrict,	g_hTankStopDistance,														// 控制坦克连跳，防止跳过头
@@ -146,7 +157,25 @@ public void OnPluginStart()
 	HookEvent("tank_spawn", evt_TankSpawn);
 	//HookEvent("ability_use", evt_AbilityUse);
 	HookEvent("player_incapacitated", evt_PlayerIncapped);
+	#if(DEBUG_ALL)
+	RegAdminCmd("sm_checkladder", CalculateLadderNum, ADMFLAG_ROOT, "测试当前地图有多少个梯子");
+	#endif
+	ladderInit();
 }
+
+#if(DEBUG_ALL)
+public Action CalculateLadderNum(int client, int args){
+	int ent = -1, laddercount = 0;
+	while((ent = FindEntityByClassname(ent, "func_simpleladder")) != -1) {
+		if(IsValidEntity(ent)) {
+			laddercount++;
+		}
+	}
+	PrintToChatAll("本地图共有：%d 个梯子 %d个初始化检测梯子", laddercount, ladderNum);
+	return Plugin_Handled;
+}
+#endif
+
 public void ConVarChanged_Cvars(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	Get_ThrowRange();
@@ -156,6 +185,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 {
 	if (IsAiTank(client))
 	{
+		if (L4D_IsPlayerStaggering(client))
+			return Plugin_Continue;
 		bool bHasSight = false, bIsSurvivorFailed = true;
 		int vomit_survivor = 0, target = GetClientAimTarget(client, true), flags = GetEntityFlags(client), nearest_target = GetClosetMobileSurvivor(client), nearest_targetdist = GetClosetSurvivorDistance(client), current_seq = GetEntProp(client, Prop_Send, "m_nSequence");	sicount = GetSiCount_ExcludeTank(bIsSurvivorFailed, vomit_survivor);
 		float selfpos[3] = {0.0}, eyeangles[3] = {0.0}, velbuffer[3] = {0.0}, vecspeed[3] = {0.0}, curspeed = 0.0;
@@ -165,7 +196,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		curspeed = SquareRoot(Pow(vecspeed[0], 2.0) + Pow(vecspeed[1], 2.0));
 		bHasSight = view_as<bool>(GetEntProp(client, Prop_Send, "m_hasVisibleThreats"));
 		// 判断周围是否有梯子，有则不锁定视角
-		IsLadderAround(client, 80.0, selfpos);
+		//IsLadderAround(client, 150.0, selfpos);
 		// 连跳与扔石头相关，判断目标是否有效，目标有效，执行连跳与空中防止跳过头操作，同时判断距离，是否允许扔石头
 		if (IsValidSurvivor(target))
 		{
@@ -312,10 +343,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		}
 		//PrintToConsoleAll("锁定视角start");
 		// 视角锁定，不允许消耗时并当前时间戳减去扔石头时的时间戳大于 ROCK_AIM_TIME 锁定视角
-		if (bHasSight && !eTankStructure[client].bCanConsume && GetGameTime() - eTankStructure[client].fRockThrowTime > ROCK_AIM_TIME && !IsOnLadder(client) && !IsClientIncapped(nearest_target))
+		if (bHasSight && !eTankStructure[client].bCanConsume && GetGameTime() - eTankStructure[client].fRockThrowTime > ROCK_AIM_TIME  && eTankStructure[client].bCanLockVision)
 		//if (bHasSight && !eTankStructure[client].bCanConsume && GetGameTime() - eTankStructure[client].fRockThrowTime > ROCK_AIM_TIME && !IsOnLadder(client) && !IsClientIncapped(nearest_target))
 		{
-			//PrintToConsoleAll("锁定视角");
+			#if (DEBUG_ALL)
+				//PrintToConsoleAll("锁定视角中");
+			#endif
 			float self_eye_pos[3] = {0.0}, targetpos[3] = {0.0}, look_at[3] = {0.0};
 			if (IsValidSurvivor(nearest_target))
 			{
@@ -334,7 +367,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			buttons &= ~IN_JUMP;
 			buttons &= ~IN_DUCK;
 		}
-		/*
+/*
 		// 生还者团灭了，跳起来嘲讽，按键时间不要过快，0.3 秒为最小间隔，如果在帧操作中一直按键则会导致按键不会执行
 		if (bIsSurvivorFailed)
 		{
@@ -354,46 +387,16 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	return Plugin_Continue;
 }
 
-// 检测当前坦克周围有没有梯子
-stock void IsLadderAround(int client, float distance, float selfpos[3])
-{
-	if (IsAiTank(client) && IsPlayerAlive(client))
-	{
-		float mins[3] = {0.0}, maxs[3] = {0.0};
-		GetClientMins(client, mins);
-		GetClientMaxs(client, maxs);
-		mins[0] -= distance;
-		mins[1] -= distance;
-		mins[2] += NAV_MESH_HEIGHT;
-		maxs[0] += distance;
-		maxs[1] += distance;
-		TR_EnumerateEntitiesHull(selfpos, selfpos, mins, maxs, MASK_NPCSOLID_BRUSHONLY, TR_LadderFilter, client);
+public void ladderInit(){
+	ladderNum = 0;
+	for(int i =0; i < ladderTotal; i++){
+		ladder[i].entityid = -1;
+		ladder[i].angles = {0.0, 0.0, 0.0};
+		ladder[i].normal = {0.0, 0.0, 0.0};
+		ladder[i].position = {0.0, 0.0, 0.0};
+		ladder[i].origin = {0.0, 0.0, 0.0};
 	}
 }
-stock bool TR_LadderFilter(int entity, int self)
-{
-	//PrintToConsoleAll("视角锁定： %d", eTankStructure[self].bCanLockVision);
-	if (IsValidEntity(entity) && IsValidEdict(entity))
-	{
-		char classname[64] = {'\0'};
-		GetEntityClassname(entity, classname, sizeof(classname));
-		if (classname[0] == 'f' && (strcmp(classname, "func_simpleladder") == 0 || strcmp(classname, "func_ladder") == 0))
-		{
-			//PrintToConsoleAll("有梯子，解除锁定视角");
-			eTankStructure[self].bCanLockVision = false;
-			eTankStructure[self].fLockVisonTime = GetGameTime();
-			return false;
-		}
-	}
-	if (GetGameTime() - eTankStructure[self].fLockVisonTime > VISION_UNLOCK_TIME)
-	{
-		eTankStructure[self].bCanLockVision = true;
-	}
-	//PrintToConsoleAll("视角锁定： %d", eTankStructure[self].bCanLockVision);
-	return true;
-}
-
-
 
 // 坦克跳砖
 public Action L4D_OnCThrowActivate(int ability)
@@ -492,15 +495,27 @@ public void evt_TankSpawn(Event event, const char[] name, bool dontBroadcast)
 		eTankStructure[client].setTankStopDistance(GetConVarFloat(g_hTankStopDistance));
 		CreateTimer(1.0, Timer_SpawnCheckConsume, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 		// 创建坦克位置检测时钟，如果坦克在有目标前就卡住，则不会检测，所以在刷出来的时候就需要创建
-		if (!eTankStructure[client].bHasCreatePosTimer)
-		{
-			if(hPosCheckTimer[client] != INVALID_HANDLE)
-				delete hPosCheckTimer[client];
-			hPosCheckTimer[client] = CreateTimer(LAG_DETECT_TIME, Timer_CheckLag, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-			eTankStructure[client].bHasCreatePosTimer = true;
-		}
+		if(hPosCheckTimer[client] != null)
+			delete hPosCheckTimer[client];
+		hPosCheckTimer[client] = CreateTimer(LAG_DETECT_TIME, Timer_CheckLag, client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	}
 }
+
+#if (DEBUG_ALL)
+	public void OnMapStart()
+	{
+		g_sprite = PrecacheModel("materials/sprites/laserbeam.vmt");
+		g_sprite = g_sprite + 0;
+	}
+#endif
+
+public void OnMapEnd(){
+	for(int i =0; i <= MAXPLAYERS; i++){
+		eTankStructure[i].struct_Init();
+		hPosCheckTimer[i] = null;
+	}
+}
+
 /*
 public void evt_AbilityUse(Event event, const char[] name, bool dontBroadCast)
 {
@@ -544,10 +559,11 @@ public void evt_PlayerIncapped(Event event, const char[] name, bool dontBroadcas
 	{
 		eTankStructure[attacker].iIncappedCount += 1;
 	}
-	else if (IsAiTank(client))
+	else if (IsAiTank(client) )
 	{
-		delete hPosCheckTimer[client];
-		hPosCheckTimer[client] = null;
+		if(hPosCheckTimer[client] != null){
+			delete hPosCheckTimer[client];
+		}	
 		eTankStructure[client].struct_Init();
 		ConsumePosInit(client);
 	}
@@ -592,6 +608,12 @@ bool Tank_DoBhop(int client, int &buttons, float vec[3])
 	return bJumped;
 }
 
+public Action L4D_OnFirstSurvivorLeftSafeArea(){
+	ladderInit();
+	CheckAllLadder();
+	return Plugin_Continue;
+}
+
 // 以缩放后的向量加速到玩家的当前速度中
 bool ClientPush(int client, float vec[3])
 {
@@ -618,6 +640,7 @@ public Action Timer_CheckLag(Handle timer, int client)
 	{
 		float selfpos[3] = {0.0};
 		GetClientAbsOrigin(client, selfpos);
+		IsLadderAround(client, 150.0, selfpos);
 		if (!Is_InConsumeRaidus(selfpos, eTankStructure[client].fNowPos, LAG_DETECT_RAIDUS))
 		{
 			CopyVectors(selfpos, eTankStructure[client].fNowPos);
@@ -1155,4 +1178,121 @@ int Calculate_Flow(Address pNavArea)
 		now_nav_promixity = 1.0;
 	}
 	return RoundToNearest(now_nav_promixity * 100.0);
+}
+
+//遍历地图entity找到所有梯子entity，储存所有梯子信息
+public void CheckAllLadder(){
+	int ent = -1;
+	while((ent = FindEntityByClassname(ent, "func_simpleladder")) != -1) {
+		if(IsValidEntity(ent)) {
+			ladder[ladderNum].entityid = ent;
+			GetLadderEntityInfo(ent, ladder[ladderNum].origin, ladder[ladderNum].position, ladder[ladderNum].normal, ladder[ladderNum].angles);
+			ladderNum++;
+		}
+	}
+	//return Plugin_Continue;
+}
+
+// 检测当前坦克周围有没有梯子
+void IsLadderAround(int client, float distance, float selfpos[3])
+{
+	if (IsAiTank(client) && IsPlayerAlive(client))
+	{
+		for(int i =0; i < ladderNum; i++){
+			if(GetVector2DDistance(selfpos, ladder[i].position) < distance ){
+				#if(DEBUG_ALL)
+					PrintToConsoleAll("检测到附近梯子，关闭%f秒视角锁定, 此地图总共有%d个梯子", LAG_DETECT_TIME, ladderNum);
+				#endif
+				eTankStructure[client].bCanLockVision = false;
+				return;
+			}
+		}
+		#if(DEBUG_ALL)
+			PrintToConsoleAll("检测到附近没有梯子，允许视角锁定, 此地图总共有%d个梯子", ladderNum);
+		#endif
+		eTankStructure[client].bCanLockVision = true;
+	}
+}
+
+public float GetVector2DDistance(float vec1[3], float vec2[3]){
+	vec1[2] = 0.0;
+	vec2[2] = 0.0;
+	return GetVectorDistance(vec1, vec2);
+}
+
+
+public void GetLadderEntityInfo(int entity, float origin[3], float position[3], float normal[3], float angles[3]) {
+    float mins[3];
+    float maxs[3];
+    GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+    GetEntPropVector(entity, Prop_Send, "m_vecMins", mins);
+    GetEntPropVector(entity, Prop_Send, "m_vecMaxs", maxs);
+    GetEntPropVector(entity, Prop_Send, "m_climbableNormal", normal);
+    GetEntPropVector(entity, Prop_Send, "m_angRotation", angles);
+    Math_RotateVector(mins, angles, mins);
+    Math_RotateVector(maxs, angles, maxs);
+    position[0] = origin[0] + (mins[0] + maxs[0]) * 0.5;
+    position[1] = origin[1] + (mins[1] + maxs[1]) * 0.5;
+    position[2] = origin[2] + (mins[2] + maxs[2]) * 0.5;
+}
+
+/**
+ * Rotates a vector around its zero-point.
+ * Note: As example you can rotate mins and maxs of an entity and then add its origin to mins and maxs to get its bounding box in relation to the world and its rotation.
+ * When used with players use the following angle input:
+ *   angles[0] = 0.0;
+ *   angles[1] = 0.0;
+ *   angles[2] = playerEyeAngles[1];
+ *
+ * @param vec 			Vector to rotate.
+ * @param angles 		How to rotate the vector.
+ * @param result		Output vector.
+ * @noreturn
+ */
+stock void Math_RotateVector(const float vec[3], const float angles[3], float result[3])
+{
+    // First the angle/radiant calculations
+    float rad[3];
+    // I don't really know why, but the alpha, beta, gamma order of the angles are messed up...
+    // 2 = xAxis
+    // 0 = yAxis
+    // 1 = zAxis
+    rad[0] = DegToRad(angles[2]);
+    rad[1] = DegToRad(angles[0]);
+    rad[2] = DegToRad(angles[1]);
+
+    // Pre-calc function calls
+    float cosAlpha = Cosine(rad[0]);
+    float sinAlpha = Sine(rad[0]);
+    float cosBeta = Cosine(rad[1]);
+    float sinBeta = Sine(rad[1]);
+    float cosGamma = Cosine(rad[2]);
+    float sinGamma = Sine(rad[2]);
+
+    // 3D rotation matrix for more information: http://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
+    float x = vec[0];
+    float y = vec[1];
+    float z = vec[2];
+    float newX;
+    float newY;
+    float newZ;
+    newY = cosAlpha*y - sinAlpha*z;
+    newZ = cosAlpha*z + sinAlpha*y;
+    y = newY;
+    z = newZ;
+
+    newX = cosBeta*x + sinBeta*z;
+    newZ = cosBeta*z - sinBeta*x;
+    x = newX;
+    z = newZ;
+
+    newX = cosGamma*x - sinGamma*y;
+    newY = cosGamma*y + sinGamma*x;
+    x = newX;
+    y = newY;
+
+    // Store everything...
+    result[0] = x;
+    result[1] = y;
+    result[2] = z;
 }

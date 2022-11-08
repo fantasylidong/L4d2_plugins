@@ -5,7 +5,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <left4dhooks>
-#include "treeutil.sp"
+#include <treeutil>
 
 #define CVAR_FLAG FCVAR_NOTIFY
 #define NAV_MESH_HEIGHT 20.0
@@ -25,7 +25,7 @@ ConVar g_hAllowBhop, g_hBhopSpeed, g_hChargeDist, g_hExtraTargetDist, g_hAimOffs
 // Float
 float charge_interval[MAXPLAYERS + 1];
 // Bools
-bool can_attack_pinned[MAXPLAYERS + 1] = false, is_charging[MAXPLAYERS + 1] = false;
+bool can_attack_pinned[MAXPLAYERS + 1] = {false}, is_charging[MAXPLAYERS + 1] = {false};
 // Ints
 int survivor_num = 0, ranged_client[MAXPLAYERS + 1][MAXPLAYERS + 1], ranged_index[MAXPLAYERS + 1] = {0};
 
@@ -62,6 +62,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	if (IsCharger(client) && IsPlayerAlive(client))
 	{
 		if(GetEntPropEnt(client, Prop_Send, "m_pummelVictim") > 0 || GetEntPropEnt(client, Prop_Send, "m_carryVictim") > 0)
+			return Plugin_Continue;
+		if (L4D_IsPlayerStaggering(client))
 			return Plugin_Continue;
 		bool has_sight = view_as<bool>(GetEntProp(client, Prop_Send, "m_hasVisibleThreats"));
 		int target = GetClientAimTarget(client, true), flags = GetEntityFlags(client), closet_survivor_distance = GetClosetSurvivorDistance(client), ability = GetEntPropEnt(client, Prop_Send, "m_customAbility");
@@ -202,7 +204,7 @@ public Action L4D2_OnChooseVictim(int specialInfected, int &curTarget)
 		float self_pos[3] = {0.0}, target_pos[3] = {0.0}, min_dist = 0.0, max_dist = 0.0;
 		GetClientEyePosition(specialInfected, self_pos);
 		// 获取在冲锋范围内的目标，从 Cvar 中获取最下与最大范围
-		char cvar_dist[16] = '\0';
+		char cvar_dist[16] = {'\0'};
 		g_hExtraTargetDist.GetString(cvar_dist, sizeof(cvar_dist));
 		if (strcmp(cvar_dist, NULL_STRING) != 0)
 		{
@@ -297,7 +299,7 @@ public Action L4D2_OnChooseVictim(int specialInfected, int &curTarget)
 void Get_MeleeNum(int &melee_num, int &new_target)
 {
 	int active_weapon = -1;
-	char weapon_name[48] = '\0';
+	char weapon_name[48] = {'\0'};
 	for (int client = 1; client <= MaxClients; client++)
 	{
 		if (IsClientConnected(client) && IsClientInGame(client) && GetClientTeam(client) == view_as<int>(TEAM_SURVIVOR) && IsPlayerAlive(client) && !IsClientIncapped(client) && !IsClientPinned(client))
@@ -321,7 +323,7 @@ void Get_MeleeNum(int &melee_num, int &new_target)
 bool Client_MeleeCheck(int client)
 {
 	int active_weapon = -1;
-	char weapon_name[48] = '\0';
+	char weapon_name[48] = {'\0'};
 	if (IsValidSurvivor(client) && IsPlayerAlive(client) && !IsClientIncapped(client) && !IsClientPinned(client))
 	{
 		active_weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
@@ -343,7 +345,7 @@ int GetCrowdPlace(int num_survivors)
 	{
 		int index = 0, iTarget = 0;
 		int[] iSurvivors = new int[num_survivors];
-		float fDistance[MAXPLAYERS + 1] = -1.0;
+		float fDistance[MAXPLAYERS + 1] = {-1.0};
 		for (int client = 1; client <= MaxClients; client++)
 		{
 			if (IsValidClient(client) && GetClientTeam(client) == view_as<int>(TEAM_SURVIVOR))
@@ -356,11 +358,11 @@ int GetCrowdPlace(int num_survivors)
 			if (IsValidClient(client) && IsPlayerAlive(client) && GetClientTeam(client) == view_as<int>(TEAM_SURVIVOR))
 			{
 				fDistance[client] = 0.0;
-				float fClientPos[3] = 0.0;
+				float fClientPos[3] = {0.0};
 				GetClientAbsOrigin(client, fClientPos);
 				for (int i = 0; i < num_survivors; i++)
 				{
-					float fPos[3] = 0.0;
+					float fPos[3] = {0.0};
 					GetClientAbsOrigin(iSurvivors[i], fPos);
 					fDistance[client] += GetVectorDistance(fClientPos, fPos, true);
 				}
@@ -498,7 +500,7 @@ stock bool Dont_HitWall_Or_Fall(int client, float vel[3])
 {
 	bool hullrayhit = false;
 	int down_hullray_hitent = -1;
-	char down_hullray_hitent_classname[16] = '\0';
+	char down_hullray_hitent_classname[16] = {'\0'};
 	float selfpos[3] = {0.0}, resultpos[3] = {0.0}, mins[3] = {0.0}, maxs[3] = {0.0}, hullray_endpos[3] = {0.0}, down_hullray_startpos[3] = {0.0}, down_hullray_endpos[3] = {0.0}, down_hullray_hitpos[3] = {0.0};
 	GetClientAbsOrigin(client, selfpos);
 	AddVectors(selfpos, vel, resultpos);
@@ -558,7 +560,7 @@ bool TR_EntityFilter(int entity, int mask)
 	}
 	else if (entity > MaxClients)
 	{
-		char classname[16] = '\0';
+		char classname[16] = {'\0'};
 		GetEdictClassname(entity, classname, sizeof(classname));
 		if (strcmp(classname, "infected") == 0 || strcmp(classname, "witch") == 0 || strcmp(classname, "prop_physics") == 0 || strcmp(classname, "tank_rock") == 0)
 		{
