@@ -1,0 +1,4 @@
+[submodule "confoglcompmod"]
+	path = confoglcompmod
+	url = https://github.com/devilesk/confoglcompmod.git
+	branch = rl4d2l

@@ -1,0 +1,840 @@
+"Phrases"
+{
+	"STOP_DANCE"
+	{
+		"en"			"Stop dance"
+		"ru"			"Остановить танец"
+	}
+	"FOR"
+	{
+		"en"			"for"
+		"ru"			"для"
+	}
+	"SELECT_PLAYER"
+	{
+		"en"			"Select player:"
+		"ru"			"Выберите игрока:"
+	}
+	"DANCES_SOMEBODY"
+	{
+		"en"			"Force somebody to dance"
+		"ru"			"Заставить кого-то танцевать"
+	}
+	"SCOPE_DETECTED"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} You can't use emotes while scoping!"
+		"es"			"[{olive}Emotes{default}]{darkred} No puedes usar esto mientras usas la mirilla del arma!"
+		"ru"			"[{olive}Emotes{default}]{darkred} Вы не можете использовать эмоции во время прицеливания!"
+	}
+	"NO_DANCES_ACCESS_FLAG"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} Buy {cyan}!vip{darkred} to get access to dances"
+		"ru"			"[{olive}Emotes{default}]{darkred} Покупай {cyan}!vip{darkred} для получения доступа к танцам"
+		"es"			"[{olive}Emotes{default}]{darkred} No tienes acceso a usar dances!!"
+	}
+	"NO_EMOTES_ACCESS_FLAG"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} Buy {cyan}!vip{darkred} to get access to emotions"
+		"ru"			"[{olive}Emotes{default}]{darkred} Покупай {cyan}!vip{darkred} для получения доступа к эмоциям"
+		"es"			"[{olive}Emotes{default}]{darkred} No tienes acceso a usar emotes!!"
+	}
+	"MUST_BE_ALIVE"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} You must be alive to use this!"
+		"tr"			"[{olive}Emotes{default}]{darkred} Bunu kullanmak için hayatta olmalısın!"	
+		"es"			"[{olive}Emotes{default}]{darkred} Debes estar vivo para usar eso!"
+		"ru"			"[{olive}Emotes{default}]{darkred} Вы должны быть живы!"
+	}
+
+	"STAY_ON_GROUND"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} You must stay on the ground to use this!"
+		"tr"			"[{olive}Emotes{default}]{darkred} Bunu kullanmak için haraket etmemelisin!"		
+		"es"			"[{olive}Emotes{default}]{darkred} Debes estar en el suelo para usar eso!"
+		"ru"			"[{olive}Emotes{default}]{darkred} Вы должны стоять на земле!"
+	}
+	
+	"NOT_INCAP"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} You shouldn't be incapped!"
+		"ru"			"[{olive}Emotes{default}]{darkred} Вы не должны быть в инкапе!"
+	}
+
+	"COOLDOWN_EMOTES"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} It is on cooldown!"
+		"tr"			"[{olive}Emotes{default}]{darkred} Biraz bekle!"		
+		"es"			"[{olive}Emotes{default}]{darkred} Está enfriándose!"
+		"ru"			"[{olive}Emotes{default}]{darkred} Нельзя использовать слишком часто!"
+	}
+
+	"AMIN_1_INVALID"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} Argument 1 is invalid!!!"
+		"tr"			"[{olive}Emotes{default}]{darkred} Bağımsız değişken 1 geçersiz!!!"		
+		"es"			"[{olive}Emotes{default}]{darkred} El Argumento 1 es inválido"
+		"ru"			"[{olive}Emotes{default}]{darkred} Аргумент 1 недействителен!!!"
+	}
+	
+	"CANNOT_USE_NOW"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} You can't use it right now!"
+		"tr"			"[{olive}Emotes{default}]{darkred} Şu anda kullanamazsın!"		
+		"es"			"[{olive}Emotes{default}]{darkred} No puedes usar eso ahora mismo!"
+		"ru"			"[{olive}Emotes{default}]{darkred} Невозмжно использовать сейчас!"
+	}
+
+	"INVALID_EMOTE_ID"
+	{
+		"en"			"[{olive}Emotes{default}]{darkred} Invalid Emote ID, Should be between (1-84)"
+		"tr"			"[{olive}Emotes{default}]{darkred} Geçersiz Emote ID, (1-84) arasında olmalıdır"	
+		"es"			"[{olive}Emotes{default}]{darkred} Emote ID inválida, Debe estar entre (1-84)"
+		"ru"			"[{olive}Emotes{default}]{darkred} Недействительный ID эмоции, Должен быть между (1-84)"
+	}
+
+	"RANDOM_EMOTE"
+	{
+		"en"			"Random Emote"
+		"tr"			"Rastgele Emote"			
+		"es"			"Emote Aleatorio"
+		"ru"			"Рандомная Эмоция"
+	}
+
+	"RANDOM_DANCE"
+	{
+		"en"			"Random Dance"
+		"tr"			"Rastgele Dans"
+		"es"			"Baile Aleatorio"
+		"ru"			"Рандомный Танец"
+	}	
+
+	"EMOTES_LIST"
+	{
+		"en"			"Emotes List"
+		"tr"			"Emotelar Listesi"
+		"es"			"Lista de Emotes"
+		"ru"			"Список Эмоций"
+	}
+
+	"DANCES_LIST"
+	{
+		"en"			"Dances List"
+		"tr"			"Dans Listesi"
+		"es"			"Lista de Bailes"
+		"ru"			"Список Танцев"
+	}		
+
+	"EMOTE_PLAYER"
+	{
+		"en"			"Emote player"
+		"tr"			"Emote oyuncu"
+		"es"			"Reproductor de Emotes"
+		"ru"			"Установить эмоцию игроку"
+	}	
+
+	"SELECT_EMOTE"
+	{
+		"en"			"Select Emote"
+		"tr"			"Emote Seç"
+		"es"			"Seleccionar Emote"
+		"ru"			"Выберите Эмоцию"
+	}
+	
+	"TITLE_MAIM_MENU"
+	{
+		"en"			"Emotes and Dances"
+		"tr"			"Emotelar ve Danslar" 
+		"es"			"Emotes y Bailes"
+		"ru"			"Эмоции и Танцы"
+	}
+	
+	"TITLE_EMOTES_MENU"
+	{
+		"en"			"Emotes"
+		"tr"			"Emotelar"
+		"es"			"Emotes"
+		"ru"			"Эмоции"
+	}	
+	
+	"TITLE_DANCES_MENU"
+	{
+		"en"			"Dances"
+		"tr"			"Danslar"  
+		"es"			"Bailes"
+		"ru"			"Танцы"
+	}	
+
+	"Emote_Fonzie_Pistol"
+	{
+		"en"			"Finger Guns (1)"
+		"tr"			"Parmak silahları"
+		"es"			"Pistolas de Dedos"
+		"ru"			"Пальцы Пистолеты"
+	}
+
+	"Emote_Bring_It_On"
+	{
+		"en"			"Come To Me (2)"
+		"tr"			"Bana Gel"		
+		"es"			"Ven A Mi"
+		"ru"			"Иди ко Мне"
+	}
+
+	"Emote_ThumbsDown"
+	{
+		"en"			"Thumbs Down (3)"
+		"tr"			"Başparmak Aşağı"
+		"es"			"Pulgares Abajo"
+		"ru"			"Палец Вниз"
+	}
+	
+	"Emote_Celebration_Loop"
+	{
+		"en"			"Celebration (4)"
+		"tr"			"Kutlama"
+		"es"			"Celebración"
+		"ru"			"Празднование"
+	}
+
+	"Emote_BlowKiss"
+	{
+		"en"			"Blow kiss (5)"
+		"tr"			"Öpücük atmak"
+		"es"			"Beso Aéreo"
+		"ru"			"Поцелуй"
+	}
+
+	"Emote_Calculated"
+	{
+		"en"			"Calculated (6)"
+		"tr"			"Hesaplanmış"
+		"es"			"Calculado"
+		"ru"			"Подсчет"
+	}
+
+	"Emote_Confused"
+	{
+		"en"			"Confused (7)"
+		"tr"			"Şaşkın"
+		"es"			"Confundido"
+		"ru"			"Винсент"
+	}
+	
+	"Emote_Chug"
+	{
+		"en"			"Chug (8)"
+		"tr"			"Chug"  
+		"es"			"Resoplar"
+		"ru"			"Чаг"
+	}
+
+	"Emote_Cry"
+	{
+		"en"			"Cry (9)"
+		"tr"			"Ağlamak"
+		"es"			"Llorar"
+		"ru"			"Плачь"
+	}
+
+	"Emote_DustingOffHands"
+	{
+		"en"			"Band of the fort (10)"
+		"tr"			"Kale grubu"
+		"es"			"Desempolvarse las Manos"
+		"ru"			"Дело Сделано"
+	}
+
+	"Emote_DustOffShoulders"
+	{
+		"en"			"Shake It Up 2 (11)"
+		"tr"			"2 kadar salla" 
+		"es"			"Muévelo 2"
+		"ru"			"Пыль с Плеч"
+	}
+	
+	"Emote_Facepalm"
+	{
+		"en"			"Facepalm (12)"
+		"tr"			"Facepalm" 
+		"es"			"Palmada en la Cara"
+		"ru"			"Фейспалм"
+	}
+
+	"Emote_Fishing"
+	{
+		"en"			"On the Hook (13)"
+		"tr"			"Kancada"
+		"es"			"En el Gancho"
+		"ru"			"Рыбалка"
+	}
+
+	"Emote_Flex"
+	{
+		"en"			"Flex (14)"
+		"tr"			"Esnek"
+		"es"			"Flexionarse"
+		"ru"			"Флекс"
+	}
+
+	"Emote_golfclap"
+	{
+		"en"			"Golf Clap (15)"
+		"tr"			"Golf alkış"  
+		"es"			"Palmaditas"
+		"ru"			"Аплодисменты"
+	}
+	
+	"Emote_HandSignals"
+	{
+		"en"			"Hand Signals (16)"
+		"tr"			"El işaretleri"
+		"es"			"Selales de Mano"
+		"ru"			"Язык Жестов"
+	}
+
+	"Emote_HeelClick"
+	{
+		"en"			"Click! (17)"
+		"tr"			"Tıkla!"
+		"es"			"Click!"
+		"ru"			"Клик!"
+	}
+
+	"Emote_Hotstuff"
+	{
+		"en"			"Hot Stuff (18)"
+		"tr"			"Sıcak sayfalar"
+		"es"			"Cosas Calientes"
+		"ru"			"Горячая Штучка"
+	}
+
+	"Emote_IBreakYou"
+	{
+		"en"			"Breaking Point (19)"
+		"tr"			"Kırılma noktası"
+		"es"			"Punto de Ruptura"
+		"ru"			"Я тебя сломаю"
+	}
+	
+	"Emote_IHeartYou"
+	{
+		"en"			"True Love (20)"
+		"tr"			"Gerçek aşk"  
+		"es"			"Amor Verdadero"
+		"ru"			"Истинная Любовь"
+	}
+
+	"Emote_Kung-Fu_Salute"
+	{
+		"en"			"Kung-Fu Salute (21)"
+		"tr"			"Kung-Fu Selamı"
+		"es"			"Saludo de Kung-Fu"
+		"ru"			"Кунг-Фу Приветствие"
+	}
+
+	"Emote_Laugh"
+	{
+		"en"			"Laugh (22)"
+		"tr"			"Gülmek"
+		"es"			"Risa"
+		"ru"			"Смех"
+	}
+
+	"Emote_Luchador"
+	{
+		"en"			"Luchador (23)"
+		"tr"			"Savaşçı"
+		"es"			"Luchador"
+		"ru"			"Борец"
+	}
+	
+	"Emote_Make_It_Rain"
+	{
+		"en"			"Make it Rain (24)"
+		"tr"			"Yağdır"
+		"es"			"Haz que Llueva"
+		"ru"			"Рич Бич"
+	}
+
+	"Emote_NotToday"
+	{
+		"en"			"No hoy (25)"
+		"tr"			"Bugün değil"
+		"es"			"Hoy No"
+		"ru"			"Не Сегодня"
+	}
+
+	"Emote_RockPaperScissor_Paper"
+	{
+		"en"			"Paper (26)"
+		"tr"			"Kağıt"
+		"es"			"Papel"
+		"ru"			"Бумага"
+	}
+
+	"Emote_RockPaperScissor_Rock"
+	{
+		"en"			"Rock (27)"
+		"tr"			"Taş"
+		"es"			"Piedra"
+		"ru"			"Камень"
+	}
+	
+	"Emote_RockPaperScissor_Scissor"
+	{
+		"en"			"Scissors (28)"
+		"tr"			"Taş"
+		"es"			"Tijeras"
+		"ru"			"Ножницы"
+	}
+
+	"Emote_Salt"
+	{
+		"en"			"Salt (29)"
+		"tr"			"Tuz"
+		"es"			"Sal"
+		"ru"			"Посолить"
+	}
+
+	"Emote_Salute"
+	{
+		"en"			"Salute (30)"
+		"tr"			"Sağlık"
+		"es"			"Saludo"
+		"ru"			"Отдать Честь"
+	}
+
+	"Emote_SmoothDrive"
+	{
+		"en"			"Drive Car (31)"
+		"tr"			"Araba sürmek"
+		"es"			"Conducir Coche"
+		"ru"			"Снуп Догг"
+	}
+	"Emote_Snap"
+	{
+		"en"			"Snap (32)"
+		"tr"			"Ani"
+		"es"			"Chasquido"
+		"ru"			"Щелчок"
+	}
+
+	"Emote_StageBow"
+	{
+		"en"			"Stage Bow (33)"
+		"tr"			"Sahne yay"
+		"es"			"Reverencia"
+		"ru"			"Низкий Поклон"
+	}
+
+	"Emote_ThumbsUp"
+	{
+		"en"			"Thumbs Up (34)"
+		"tr"			"Başparmak havaya" 
+		"es"			"Pulgares Arriba"
+		"ru"			"Палец вверх"
+	}
+	"Emote_Wave2"
+	{
+		"en"			"Salute 2 (35)"
+		"tr"			"Sağlık 2"
+		"es"			"Saludo 2"
+		"ru"			"Привет"
+	}
+
+	"Emote_Yeet"
+	{
+		"en"			"Yeet (36)"
+		"tr"			"Yeet"
+		"es"			"Estúpido"
+		"ru"			"Йиит"
+	}
+
+	"DanceMoves"
+	{
+		"en"			"Dance Moves (37)"
+		"tr"			"Dans hareketleri"
+		"es"			"Movimientos de Baile"
+		"ru"			"Танцевальные Движения"
+	}
+
+	"Emote_Mask_Off_Intro"
+	{
+		"en"			"Orange Justice (38)"
+		"tr"			"Turuncu Adalet"
+		"es"			"Justicia Naranja"
+		"ru"			"Оранжевое Правосудие"
+	}
+	
+	"Emote_Zippy_Dance"
+	{
+		"en"			"Rambunctious (39)"
+		"tr"			"Neşeli"
+		"es"			"Bullicioso"
+		"ru"			"Непокорный"
+	}
+
+	"ElectroShuffle"
+	{
+		"en"			"Electro Shuffle (40)"
+		"tr"			"Elektro Karıştırma"
+		"es"			"Shuffle Electrónico"
+		"ru"			"Электро Шаффл"
+	}
+
+	"Emote_AerobicChamp"
+	{
+		"en"			"Aerobic (41)"
+		"tr"			"Aerobik"
+		"es"			"Aeróbico"
+		"ru"			"Аэробика"
+	}
+
+	"Emote_Bendy"
+	{
+		"en"			"Bendy (42)"
+		"tr"			"Bendy"
+		"es"			"Flexible"
+		"ru"			"Бенди"
+	}
+	
+	"Emote_BandOfTheFort"
+	{
+		"en"			"Best Mates (43)"
+		"tr"			"En iyi arkadaşlar" 
+		"es"			"Mejores Amigos"
+		"ru"			"Лучшие Друзья"
+	}
+
+	"Emote_Boogie_Down_Intro"
+	{
+		"en"			"Boogie (44)"
+		"tr"			"Boogie"
+		"es"			"Boogie"
+		"ru"			"Буги"
+	}
+
+	"Emote_Capoeira"
+	{
+		"en"			"Capoeira (45)"
+		"tr"			"Capoeira"
+		"es"			"Capoeira"
+		"ru"			"Капоэйра"
+	}
+
+	"Emote_Charleston"
+	{
+		"en"			"Flapper (46)"
+		"tr"			"Sineklik"
+		"es"			"A la Moda"
+		"ru"			"Флаппер"
+	}
+	
+	"Emote_Chicken"
+	{
+		"en"			"Chicken (47)"
+		"tr"			"Tavuk"
+		"es"			"Pollo"
+		"ru"			"Курица"
+	}
+
+	"Emote_Dance_NoBones"
+	{
+		"en"			"Boneless (48)"
+		"tr"			"Kemiksiz"
+		"es"			"Sin Huesos"
+		"ru"			"Без Костей"
+	}
+
+	"Emote_Dance_Shoot"
+	{
+		"en"			"Hype (49)"
+		"tr"			"Yutturmaca"
+		"es"			"Bombo"
+		"ru"			"Хайп"
+	}
+
+	"Emote_Dance_SwipeIt"
+	{
+		"en"			"Shake It Up (50)"
+		"tr"			"Salla"
+		"es"			"Muévelo"
+		"ru"			"Встряхнись"
+	}
+	
+	"Emote_Dance_Disco_T3"
+	{
+		"en"			"Disco Fever (51)"
+		"tr"			"Disko ateşi"
+		"es"			"Disco para Siempre"
+		"ru"			"Диско 1"
+		
+	}
+
+	"Emote_DG_Disco"
+	{
+		"en"			"Disco Fever 2 (52)"
+		"tr"			"Disko ateşi 2"
+		"es"			"Disco para Siempre 2"
+		"ru"			"Диско 2"
+	}
+
+	"Emote_Dance_Worm"
+	{
+		"en"			"The Worm (53)"
+		"tr"			"Solucan"
+		"es"			"El Gusano"
+		"ru"			"Волна"
+	}
+
+	"Emote_Dance_Loser"
+	{
+		"en"			"Take The L (54)"
+		"tr"			"L al"
+		"es"			"Toma La L"
+		"ru"			"Получите L"
+	}
+	
+	"Emote_Dance_Breakdance"
+	{
+		"en"			"BreakDance (55)"
+		"tr"			"BreakDance"
+		"es"			"BreakDance"
+		"ru"			"Брейк-данс"
+		
+	}
+
+	"Emote_Dance_Pump"
+	{
+		"en"			"Pump (56)"
+		"tr"			"Pompa"
+		"es"			"Bomba"
+		"ru"			"Памп"
+	}
+
+	"Emote_Dance_RideThePony"
+	{
+		"en"			"Ride The Pony (57)"
+		"tr"			"Midilli Yolculuğu"
+		"es"			"Monta Al Pony"
+		"ru"			"Верхом на Пони"
+	}
+
+	"Emote_Dab"
+	{
+		"en"			"Dab (58)"
+		"tr"			"Dab"
+		"es"			"Dab"
+		"ru"			"Дэб"
+	}
+
+	"Emote_EasternBloc_Start"
+	{
+		"en"			"Eastern Bloc (59)"
+		"tr"			"Doğu Bloğu"
+		"es"			"Bloque Oriental"
+		"ru"			"Гопак"
+	}
+
+	"Emote_FancyFeet"
+	{
+		"en"			"Dream Feet (60)"
+		"tr"			"Rüya Ayakları"
+		"es"			"Pies de Suelo"
+		"ru"			"Делай Ноги"
+	}
+
+	"Emote_FlossDance"
+	{
+		"en"			"Floss (61)"
+		"tr"			"Diş ipi"
+		"es"			"Hilo Dental"
+		"ru"			"Флосс"
+	}
+
+	"Emote_FlippnSexy"
+	{
+		"en"			"Flippn (62)"
+		"tr"			"Flippn"
+		"es"			"Flippin Sexy"
+		"ru"			"Флип"
+	}
+
+	"Emote_Fresh"
+	{
+		"en"			"Fresh (63)"
+		"tr"			"Taze"
+		"es"			"Fresco"
+		"ru"			"Фреш"
+	}
+
+	"Emote_GrooveJam"
+	{
+		"en"			"Grefg (64)"
+		"tr"			"Grefg"
+		"es"			"Grefg"
+		"ru"			"Гув Джем"
+	}
+
+	"Emote_guitar"
+	{
+		"en"			"Guitar (65)"
+		"tr"			"Gitar"
+		"es"			"Guitarra"
+		"ru"			"Гитара"
+	}
+
+	"Emote_Hillbilly_Shuffle_Intro"
+	{
+		"en"			"Shuffle (66)"
+		"tr"			"Karıştır"
+		"es"			"Shuffle"
+		"ru"			"Шаффл"
+	}
+
+	"Emote_Hiphop_01"
+	{
+		"en"			"Hip Hop (67)"
+		"tr"			"Hip Hop"
+		"es"			"Hip Hop"
+		"ru"			"Хип Хоп"
+	}
+
+	"Emote_Hula_Start"
+	{
+		"en"			"Hula Hop (68)"
+		"tr"			"Hula Hop"
+		"es"			"Hula Hop"
+		"ru"			"Хула Хуп"
+	}
+
+	"Emote_InfiniDab_Intro"
+	{
+		"en"			"Infinite Dab (69)"
+		"tr"			"Sonsuz Dab"
+		"es"			"Dab Infinito"
+		"ru"			"Бесконечный Дэб"
+	}
+
+	"Emote_Intensity_Start"
+	{
+		"en"			"Intensity (70)"
+		"tr"			"Yoğunluk"
+		"es"			"Intensidad"
+		"ru"			"Интенсивность"
+		
+	}
+
+	"Emote_IrishJig_Start"
+	{
+		"en"			"Turkish Dabke (71)"
+		"tr"			"Türk Dabke"
+		"es"			"Dabke Turco"
+		"ru"			"Турецкий Дабка"
+	}
+
+	"Emote_KoreanEagle"
+	{
+		"en"			"Eagle (72)"
+		"tr"			"Kartal"
+		"es"			"Águila"
+		"ru"			"Орел"
+	}
+
+	"Emote_Kpop_02"
+	{
+		"en"			"True Heart (73)"
+		"tr"			"Gerçek kalp"
+		"es"			"Corazón Verdadero"
+		"ru"			"К-поп"
+	}
+
+	"Emote_LivingLarge"
+	{
+		"en"			"Living Large (74)"
+		"tr"			"Büyük Yaşa"
+		"es"			"Viviendo a lo Grande"
+		"ru"			"Бесконечный Дэб"
+	}
+
+	"Emote_Maracas"
+	{
+		"en"			"Maracas (75)"
+		"tr"			"Maracas"
+		"es"			"Maracas"
+		"ru"			"Маракас"
+	}
+
+	"Emote_PopLock"
+	{
+		"en"			"Pop Lock (76)"
+		"tr"			"Pop Kilidi"		
+		"es"			"Pop Lock"
+		"ru"			"Поп Лок"
+	}
+
+	"Emote_PopRock"
+	{
+		"en"			"Star Power (77)"
+		"tr"			"Yıldız gücü"		
+		"es"			"Poder Estelar"
+		"ru"			"Поп Рок"
+	}
+
+	"Emote_RobotDance"
+	{
+		"en"			"Robot (78)"
+		"tr"			"Robot"		
+		"es"			"Robot"
+		"ru"			"Робот"
+	}
+
+	"Emote_T-Rex"
+	{
+		"en"			"T-Rex (79)"
+		"tr"			"T-Rex"		
+		"es"			"T-Rex"
+		"ru"			"Т-Рекс"
+	}
+
+	"Emote_TechnoZombie"
+	{
+		"en"			"Reanimated (80)"
+		"tr"			"Yeniden canlandırıldı"		
+		"es"			"Reanimado"
+		"ru"			"Техно Зомби"
+	}
+
+	"Emote_Twist"
+	{
+		"en"			"Twist (81)"
+		"tr"			"Dönemeç"		
+		"es"			"Twist"
+		"ru"			"Твист"
+	}
+
+	"Emote_WarehouseDance_Start"
+	{
+		"en"			"Ware House (82)"
+		"tr"			"Depo"		
+		"es"			"Almacén"
+		"ru"			"Свободный1984"
+	}
+
+	"Emote_Wiggle"
+	{
+		"en"			"Wiggle (83)"
+		"tr"			"Kıpırdatmak"		
+		"es"			"Meneo"
+		"ru"			"Покачивание"
+	}
+
+	"Emote_Youre_Awesome"
+	{
+		"en"			"You're Awesome (84)"
+		"tr"			"Harikasın"		
+		"es"			"Eres Increíble"
+		"ru"			"Ты Невероятен"
+	}
+
+}

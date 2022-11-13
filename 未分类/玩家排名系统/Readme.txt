@@ -1,0 +1,6 @@
+已经汉化
+使用Mysql数据库，数据库sourcemods文件里把名字改成l4dstats
+网页和sql文件已放置好
+最好搭配sourcebans++
+做了一个sourcebans++和玩家排名系统的docker，用了1.6.4的sourcebans和最新的玩家排名系统网页
+morzlee/sourcebans

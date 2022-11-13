@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<steamprofile-config>
+    <vars>
+        <!--
+        The Theme used by SteamProfile. Must be the name of a folder inside
+        the "ajax/themes/" folder.
+        -->
+        <var name="theme">IF</var>
+        <!--
+        If set to true, the slider menu with icon links will be shown.
+        -->
+        <var name="slidermenu">true</var>
+        <!--
+        If set to true, the banner of the currenty played game will be shown in the badge background.
+        -->
+        <var name="gamebanner">true</var>
+        <!--
+        Sets the community language.
+        Allowed values: danish, czech, dutch, english, finnish, french, german,
+                        hungarian, italian, japanese, norwegian, polish, portuguese,
+                        romanian, russian, schinese, spanish, swedish, tchinese,
+                        thai
+        -->
+        <var name="language">english</var>
+    </vars>
+    <!-- The HTML templates used for DOM manipulation. Change only if you know what you're doing. -->
+    <templates>
+        <profile>
+        <![CDATA[
+            <div class="sp-bg-game">
+            <div class="sp-bg-fade">
+            <div class="sp-badge">
+                <div class="sp-avatar">
+                        <img src="" alt="" />
+                </div>
+            </div>
+            </div>
+            </div>
+        ]]>
+        </profile>
+        <loading>
+        <![CDATA[
+            <div class="sp-loading">
+				<img src="loading.gif" width="32" height="32" alt="" />
+            </div>
+        ]]>
+        </loading>
+        <error>
+        <![CDATA[
+            <div class="sp-error">
+            </div>
+        ]]>
+        </error>
+    </templates>
+</steamprofile-config>
