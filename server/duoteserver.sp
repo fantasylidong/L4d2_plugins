@@ -134,6 +134,7 @@ public Action:PlayerDisconnect_Event(Handle:event, const String:name[], bool:don
 public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBroadcast)
 {
 	event.BroadcastDisabled = true;
+	return Plugin_Handled;
 }
 
 //系统自带的闲置提示(聊天提示：XXX 已闲置。)
@@ -180,6 +181,7 @@ public Action:ShowAnneServerWeb(client, args)
 public Action RestartMap(client,args)
 {
 	CrashMap();
+	return Plugin_Handled;
 }
 
 public OnClientPutInServer(client)
@@ -259,20 +261,18 @@ public ChangeMap_Event(Handle:event, const String:name[], bool:dontBroadcast)
 		if (IsClientInGame(client) && GetClientTeam(client) == 2 && IsPlayerAlive(client))
 		{
 			new targetHealth = GetSurvivorPermHealth(client);
-			if(targetHealth > 50)
+			L4D_SetPlayerReviveCount(client, 0);
+			if(targetHealth < 50)
 			{
-				L4D_SetPlayerReviveCount(client,0);
-			}
-			else{
 				SetSurvivorPermHealth(client, 50);
 				L4D_SetTempHealth(client,0.0);
-				L4D_SetPlayerReviveCount(client,0);
 			}
 			
 		}
 	}
 
 }
+
 //秒妹回实血
 public WitchKilled_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
